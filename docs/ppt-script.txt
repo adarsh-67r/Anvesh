@@ -1,0 +1,236 @@
+ANVESH — SIH 2026 IDEA PRESENTATION SCRIPT
+============================================
+
+Template: C:\Users\adarsh\Downloads\SIH2026-IDEA-Presentation-Format.pptx
+Max 6 slides (including title). Upload as PDF.
+IMPORTANT: Use points/diagrams/infographics/pictures — avoid paragraphs. Keep precise and easy to understand.
+Diagrams are in docs/diagrams.md — open on https://mermaid.live to export as PNG.
+
+
+========================================
+SLIDE 1 — TITLE PAGE
+========================================
+
+Problem Statement ID:    26207
+Problem Statement Title: Smart Education
+Theme:                   Smart Education
+PS Category:             Software
+Team ID:                 [FILL IN]
+Team Name:               [FILL IN]
+
+Tagline (add below team name):
+"An adaptive learning platform that evolves with every student"
+
+
+========================================
+SLIDE 2 — PROPOSED SOLUTION: ANVESH
+========================================
+
+Title: ANVESH — Adaptive Neural-Powered Versatile Education & Study Hub
+
+WHAT IS THE PROBLEM? (2-3 bullet points at top)
+
+• India's education system serves 250M+ students with one-size-fits-all teaching — students either fall behind or aren't challenged enough
+• 30%+ students disengage before completing a topic because content difficulty doesn't match their level (ASER 2023)
+• Existing EdTech platforms recommend content based on grade, not individual mastery — a Class 8 student struggling with fractions gets the same content as one ready for algebra
+
+
+OUR SOLUTION (use infographic-style layout):
+
+[TARGET ICON] ADAPTIVE RECOMMENDATION ENGINE (THE CORE DIFFERENTIATOR)
+  • Builds a Knowledge Graph (prerequisite tree of skills) for each subject
+  • Tracks individual mastery using Exponential Moving Average (EMA) — works from day 1 with zero prior data
+  • Auto-upgrades to Bayesian Knowledge Tracing (BKT) and Item Response Theory (IRT) as data accumulates
+  • Roadmap extends to Deep Knowledge Tracing (LSTM) and Semi-MoE Transformer at scale
+  • No cold-start problem — the system is useful from the very first student
+
+[ROBOT ICON] AI TUTOR CHATBOT
+  Google Gemini-powered, context-aware (knows the student's current topic), with voice output via browser TTS. Students can ask doubts at any time, in natural language.
+
+[BRAIN ICON] SPACED REPETITION FLASHCARDS
+  SM-2 algorithm (used by 10M+ Anki users worldwide) schedules reviews at mathematically optimal intervals. Proven to increase retention by 200%+.
+
+[CHECKLIST ICON] SMART TO-DO LIST
+  Auto-suggests study tasks based on knowledge graph gaps ("You should study Linear Equations next — you've mastered the prerequisites"). Carries forward incomplete tasks.
+
+[GAME ICON] GAMIFICATION
+  Quiz games unlock after 1 hour of focused study (Pomodoro timer tracked). Transforms learning into a reward cycle.
+
+[GROUP ICON] STUDY GROUPS
+  Join with invite codes, share flashcard decks, see peers' progress. Builds accountability and peer learning.
+
+[PHONE ICON] PWA / OFFLINE
+  Works on slow connections, cached flashcard review offline. Reaches rural and underserved students.
+
+
+========================================
+SLIDE 3 — TECHNICAL APPROACH
+========================================
+
+Include 2 diagrams on this slide (export from docs/diagrams.md using mermaid.live):
+  1. System Architecture diagram
+  2. Recommendation Engine Evolution timeline
+
+DIAGRAM 1: SYSTEM ARCHITECTURE (draw as flowchart/block diagram)
+
+    STUDENTS (Browser / Mobile PWA)
+           |
+           | HTTPS / REST API
+           v
+    NEXT.JS FRONTEND (Vercel)
+    [Dashboard | Learning | Flashcards | Chat | Game | Timer | Groups | Todos]
+           |
+           | REST API (JSON)
+           v
+    FASTAPI BACKEND (Render)
+    ┌──────────────────────────────────────┐
+    │  RECOMMENDATION ENGINE               │
+    │  (Production Module)                  │
+    │                                       │
+    │  Phase 0: EMA    Phase 1: BKT         │
+    │  (Rules)         (HMM)                │
+    │                                       │
+    │  Phase 2: IRT    Future: DKT/MoE      │
+    │  (2PL)           (Transformer)        │
+    │                                       │
+    │  ORCHESTRATOR (auto-selects phase)    │
+    │  SkillStateProvider Interface (stable) │
+    └──────────────────────────────────────┘
+    [Auth | Chatbot (Gemini) | Flashcards | Todos | Game]
+           |
+           v
+    POSTGRESQL (Supabase Free Tier)
+    [11 tables | Event logging from Day 1 | Training data pipeline]
+
+
+DIAGRAM 2: RECOMMENDATION ENGINE EVOLUTION (draw as timeline)
+
+    DATA VOLUME ──────────────────────────────►
+
+    Phase 0          Phase 1           Phase 2          Future
+    ┌─────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+    │   EMA   │───>│   BKT    │───>│   IRT    │───>│ DKT/MoE  │
+    │ (Rules) │    │  (HMM)   │    │  (2PL)   │    │(Transform)│
+    │ 0 data  │    │ 200+     │    │ 200+     │    │ 1000+    │
+    │ needed  │    │ attempts │    │ responses│    │ students │
+    └─────────┘    └──────────┘    └──────────┘    └──────────┘
+       DAY 1        MONTH 2-3       MONTH 4-6        YEAR 2+
+
+    AUTO-SWITCHING: System selects best available phase per skill.
+    No manual intervention. No redeployment. Same API contract.
+
+
+KEY TECHNICAL POINTS (bullets below diagrams):
+
+• SkillStateProvider Interface: A single API contract (get_mastery, get_recommendations, get_dropout_risk) that stays identical from Phase 0 to Phase 4. Callers never change — only the underlying algorithm does.
+
+• Event Logging Pipeline: Every student interaction (answers, video watches, hints, time spent) is recorded in a structured schema from Day 1. This is the training data that enables BKT -> IRT -> DKT progression.
+
+• Knowledge Graph as DAG: Skills modeled as a directed acyclic graph with prerequisite edges. The system always recommends the deepest skill whose prerequisites are mastered — optimal learning path.
+
+• EMA Formula: mastery(t) = 0.3 x correct(t) + 0.7 x mastery(t-1). Mastery declared at >=0.75 for 3 consecutive attempts. Simple, interpretable, zero-data.
+
+
+========================================
+SLIDE 4 — FEASIBILITY & VIABILITY
+========================================
+
+Split into two columns if possible:
+
+LEFT COLUMN: WHY THIS WORKS
+
+[CHECK] Zero cold-start problem
+Phase 0 (EMA + Knowledge Graph) needs no historical data. Works from the first student, first session. Most ML-based EdTech tools fail here — they need thousands of students before they can recommend anything useful.
+
+[CHECK] Zero cost deployment
+Entire production stack on free tiers:
+  - Supabase (PostgreSQL) — 500MB, 50K rows free
+  - Render (FastAPI backend) — 750 hours/month free
+  - Vercel (Next.js frontend) — unlimited deploys free
+
+[CHECK] Production-grade module
+The recommendation engine isn't a hackathon prototype — it's designed as a standalone microservice with a stable interface. Already on the production roadmap of ARiTHi Education Technology (our EdTech startup).
+
+[CHECK] Research-backed algorithms
+Every algorithm uses peer-reviewed defaults:
+  - EMA mastery tracking (exponential smoothing, standard in learning analytics)
+  - BKT (Corbett & Anderson 1995 — 4000+ citations)
+  - IRT 2PL (Embretson & Reise 2000 — foundational psychometrics)
+  - SM-2 (used by 10M+ Anki users)
+
+
+RIGHT COLUMN: CHALLENGES & MITIGATION
+
+Challenge                              | Risk   | Mitigation
+---------------------------------------|--------|-------------------------------------------
+Not enough data for ML phases          | Medium | Progressive activation — works on rules until data accumulates
+Content depends on YouTube             | Low    | User-contributed model — students/teachers paste own links
+Model accuracy with limited data       | Medium | Conservative defaults from published research. Fallback to EMA.
+Student engagement drop-off            | Medium | Gamification, spaced repetition, study groups, AI chatbot
+Scalability under load                 | Low    | Stateless REST API, async Python, horizontal scaling
+Privacy & data security                | Low    | JWT auth, no PII in logs, DB encryption, consent flags
+
+
+========================================
+SLIDE 5 — IMPACT & BENEFITS
+========================================
+
+Use icons/infographics for each point. Split into 3 sections:
+
+FOR STUDENTS:
+
+[CHART UP] Personalized learning paths — every student gets a unique skill sequence based on their actual mastery, not their grade or age.
+
+[BRAIN] 200%+ better retention — SM-2 spaced repetition is mathematically proven to optimize review timing.
+
+[GAME] Learning becomes rewarding — gamified quizzes unlock after focused study sessions. Pomodoro timer builds discipline.
+
+[ROBOT] 24/7 AI tutor — stuck at 11 PM before an exam? The chatbot knows your current topic and explains at your level.
+
+[GLOBE] Works anywhere — PWA runs offline, flashcard review works without internet. Reaches rural students.
+
+
+FOR TEACHERS:
+
+[DASHBOARD] Class-wide mastery dashboards — event logging shows which skills an entire class struggles with.
+
+[WARNING] Early dropout detection — risk scoring flags at-risk students before they disengage.
+
+[CLIPBOARD] Content contribution — teachers paste YouTube playlists per skill, curating resources without building content.
+
+
+FOR THE ECOSYSTEM:
+
+[PLUG] Pluggable into existing platforms — standalone Python microservice, any EdTech can integrate via HTTP API.
+
+[SCALE] Scales with data automatically — same system serves 10 students and 10,000 students. No v2 rewrite.
+
+[FLAG] Aligned with NEP 2020 — personalized, competency-based learning paths align with India's National Education Policy.
+
+Scale potential: Can serve 250M+ Indian students across any subject. Knowledge graph is subject-agnostic.
+
+
+========================================
+SLIDE 6 — RESEARCH & REFERENCES
+========================================
+
+1. Corbett, A. T., & Anderson, J. R. (1995). Knowledge Tracing: Modeling the Acquisition of Procedural Knowledge. User Modeling and User-Adapted Interaction, 4(4), 253-278.
+   -> Foundation of our BKT implementation. 4000+ citations.
+
+2. Embretson, S. E., & Reise, S. P. (2000). Item Response Theory for Psychologists. Lawrence Erlbaum Associates.
+   -> Our IRT 2PL model for question difficulty calibration.
+
+3. Piech, C., et al. (2015). Deep Knowledge Tracing. Advances in Neural Information Processing Systems (NeurIPS).
+   -> Future Phase 3: LSTM-based knowledge tracing at scale.
+
+4. Wozniak, P. A., & Gorzelanczyk, E. J. (1994). Optimization of repetition spacing in the practice of learning. Acta Neurobiologiae Experimentalis, 54, 59-62.
+   -> SM-2 algorithm powering our flashcard system. Used by 10M+ Anki users.
+
+5. Shazeer, N., et al. (2017). Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. ICLR 2017.
+   -> Inspiration for our Phase 4 Semi-MoE Transformer architecture.
+
+6. ASER Centre (2023). Annual Status of Education Report.
+   -> Evidence for the learning gap problem in Indian education.
+
+7. National Education Policy 2020, Ministry of Education, Government of India.
+   -> Policy alignment: competency-based, personalized learning.
