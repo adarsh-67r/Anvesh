@@ -67,9 +67,155 @@ OUR SOLUTION (use infographic-style layout):
 SLIDE 3 — TECHNICAL APPROACH
 ========================================
 
-Include 2 diagrams on this slide (export from docs/diagrams.md using mermaid.live):
-  1. System Architecture diagram
-  2. Recommendation Engine Evolution timeline
+Include 2-3 diagrams on this slide.
+HOW TO CREATE DIAGRAMS: Copy the mermaid code below into https://mermaid.live → click Actions → Export PNG → paste into PPT slide.
+
+
+MERMAID CODE FOR DIAGRAM 1 — SYSTEM ARCHITECTURE (copy everything between the ``` marks):
+
+```mermaid
+flowchart TB
+    subgraph Client["Client (Browser / PWA)"]
+        FE["Next.js Frontend\nDashboard · Learning · Flashcards\nChat · Timer · Game · Groups"]
+    end
+    subgraph Render["Render"]
+        API["FastAPI Backend"]
+        subgraph RecEngine["Recommendation Engine\n(Production Module)"]
+            KG["Knowledge Graph\n(DAG)"]
+            ORC["Orchestrator\n(Auto Phase Selection)"]
+            EMA["Phase 0: EMA\nRule-Based Mastery"]
+            BKT["Phase 1: BKT\nBayesian Knowledge Tracing"]
+            IRT["Phase 2: IRT\nItem Response Theory"]
+            FUTURE["Phase 3-4: DKT / Semi-MoE\n(Future)"]
+        end
+        AUTH["Auth (JWT)"]
+        CHAT["Chatbot"]
+        FLASH["Flashcards (SM-2)"]
+        TODOS["Smart Todos"]
+        GAME["Quiz Game"]
+        GROUPS["Study Groups"]
+    end
+    subgraph External["External Services"]
+        GEMINI["Google Gemini\n(Free Tier)"]
+        SUPA["Supabase\nPostgreSQL"]
+    end
+    Client -->|REST API + JWT| API
+    API --> RecEngine
+    API --> AUTH
+    API --> CHAT
+    API --> FLASH
+    API --> TODOS
+    API --> GAME
+    API --> GROUPS
+    ORC --> EMA
+    ORC --> BKT
+    ORC --> IRT
+    ORC -.-> FUTURE
+    KG --> ORC
+    CHAT -->|API Call| GEMINI
+    API -->|asyncpg| SUPA
+    style RecEngine fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style FUTURE fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 5 5
+    style Client fill:#f0fdf4,stroke:#22c55e
+```
+
+
+MERMAID CODE FOR DIAGRAM 2 — RECOMMENDATION PIPELINE (copy everything between the ``` marks):
+
+```mermaid
+flowchart LR
+    subgraph Input["Student Interaction"]
+        ANS["Answer Submitted"]
+    end
+    subgraph Pipeline["Processing Pipeline"]
+        LOG["Event Logger\n(Section 10 Schema)"]
+        UPD["EMA Mastery Update\nscore = 0.3*correct + 0.7*prev"]
+        ORC["Orchestrator"]
+    end
+    subgraph Phases["Phase Selection"]
+        direction TB
+        CHECK{"Data Volume\nCheck"}
+        P0["Phase 0: EMA\n0 data needed"]
+        P1["Phase 1: BKT\n200+ attempts/skill"]
+        P2["Phase 2: IRT\n200+ responses/item"]
+    end
+    subgraph Output["Recommendation"]
+        REC["Next Skills\n(Knowledge Graph Frontier)"]
+        RISK["Dropout Risk\nScore"]
+    end
+    ANS --> LOG --> UPD --> ORC --> CHECK
+    CHECK -->|"< 200 attempts"| P0
+    CHECK -->|"200+ attempts"| P1
+    CHECK -->|"200+ responses x 10+ users"| P2
+    P0 --> REC
+    P1 --> REC
+    P2 --> REC
+    ORC --> RISK
+    style Pipeline fill:#fef3c7,stroke:#f59e0b
+    style Phases fill:#dbeafe,stroke:#3b82f6
+    style Output fill:#dcfce7,stroke:#22c55e
+```
+
+
+MERMAID CODE FOR DIAGRAM 3 — KNOWLEDGE GRAPH (use on Slide 3 or 2):
+
+```mermaid
+flowchart TD
+    NUM["Number Systems\nDepth 0"] --> FRAC["Fractions & Decimals"]
+    NUM --> INT["Integers & Operations"]
+    NUM --> GEO["Basic Geometry"]
+    INT --> EXP["Exponents & Powers"]
+    FRAC --> RAT["Ratios & Proportions"]
+    INT --> ALG["Algebraic Expressions"]
+    FRAC --> ALG
+    GEO --> TRI["Triangles & Congruence"]
+    FRAC --> DATA["Data Handling"]
+    ALG --> LEQ["Linear Equations"]
+    RAT --> PCT["Percentages"]
+    FRAC --> PCT
+    TRI --> AREA["Area & Perimeter"]
+    ALG --> AREA
+    TRI --> QUAD["Quadrilaterals"]
+    DATA --> PROB["Probability"]
+    FRAC --> PROB
+    LEQ --> LINEQ["Linear Inequalities"]
+    LEQ --> COORD["Coordinate Geometry"]
+    GEO --> COORD
+    LEQ --> POLY["Polynomials"]
+    EXP --> POLY
+    POLY --> QEQN["Quadratic Equations"]
+    style NUM fill:#22c55e,color:#fff
+    style FRAC fill:#22c55e,color:#fff
+    style INT fill:#22c55e,color:#fff
+    style GEO fill:#3b82f6,color:#fff
+    style ALG fill:#3b82f6,color:#fff
+```
+
+Legend: Green = Mastered, Blue = Available (prereqs met), Gray = Locked
+
+
+MERMAID CODE FOR DIAGRAM 4 — USER FLOW (optional, for Slide 2):
+
+```mermaid
+flowchart LR
+    LOGIN["Login"] --> DASH["Dashboard"]
+    DASH --> LEARN["Learning\nRecommended Skills + Videos"]
+    DASH --> CARDS["Flashcards\nCreate & Review (SM-2)"]
+    DASH --> CHAT["AI Chat\nAsk Doubts + Voice"]
+    DASH --> TODO["Todos\nSmart Suggestions"]
+    DASH --> TIMER["Pomodoro Timer"]
+    DASH --> GROUP["Study Groups"]
+    LEARN -->|"Answer Questions"| REC["Mastery Updates\n+ New Recommendations"]
+    TIMER -->|"60 min studied"| GAME["Quiz Game\nUnlocked!"]
+    CARDS -->|"Due Cards"| REVIEW["Spaced Review"]
+    GROUP -->|"Share Decks"| CARDS
+    style DASH fill:#3b82f6,color:#fff
+    style REC fill:#22c55e,color:#fff
+    style GAME fill:#f59e0b,color:#fff
+```
+
+
+ASCII FALLBACK DIAGRAMS (if mermaid doesn't work, use these in PPT):
 
 DIAGRAM 1: SYSTEM ARCHITECTURE (draw as flowchart/block diagram)
 
