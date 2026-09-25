@@ -1,0 +1,246 @@
+{
+  "nodes": [
+    {
+      "id": "numbers_basics",
+      "label": "Number Systems",
+      "depth": 0,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": [],
+      "questions": [
+        {"text": "What is the smallest natural number?", "options": ["0", "1", "-1", "None"], "answer": "1"},
+        {"text": "Which of these is an irrational number?", "options": ["3/4", "√2", "0.5", "7"], "answer": "√2"},
+        {"text": "What is the additive identity?", "options": ["1", "0", "-1", "∞"], "answer": "0"},
+        {"text": "Which number is both rational and integer?", "options": ["√3", "π", "-5", "0.333..."], "answer": "-5"},
+        {"text": "What is the product of a number and its reciprocal?", "options": ["0", "1", "The number itself", "Undefined"], "answer": "1"}
+      ]
+    },
+    {
+      "id": "fractions",
+      "label": "Fractions & Decimals",
+      "depth": 1,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["numbers_basics"],
+      "questions": [
+        {"text": "What is 3/4 + 1/4?", "options": ["1", "4/8", "3/4", "1/2"], "answer": "1"},
+        {"text": "Convert 0.75 to a fraction", "options": ["7/5", "3/4", "75/10", "7/50"], "answer": "3/4"},
+        {"text": "What is 2/3 × 3/4?", "options": ["6/12", "1/2", "5/7", "2/4"], "answer": "1/2"},
+        {"text": "Which is greater: 5/8 or 3/5?", "options": ["5/8", "3/5", "Equal", "Cannot compare"], "answer": "5/8"},
+        {"text": "What is 1/2 ÷ 1/4?", "options": ["1/8", "2", "4", "1/2"], "answer": "2"}
+      ]
+    },
+    {
+      "id": "integers",
+      "label": "Integers & Operations",
+      "depth": 1,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["numbers_basics"],
+      "questions": [
+        {"text": "What is (-3) × (-4)?", "options": ["-12", "12", "-7", "7"], "answer": "12"},
+        {"text": "What is (-15) ÷ 3?", "options": ["5", "-5", "45", "-45"], "answer": "-5"},
+        {"text": "What is |−7|?", "options": ["-7", "7", "0", "1/7"], "answer": "7"},
+        {"text": "(-2) + (-3) = ?", "options": ["5", "-5", "1", "-1"], "answer": "-5"}
+      ]
+    },
+    {
+      "id": "exponents",
+      "label": "Exponents & Powers",
+      "depth": 2,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["integers"],
+      "questions": [
+        {"text": "What is 2³?", "options": ["6", "8", "9", "16"], "answer": "8"},
+        {"text": "Simplify: a² × a³", "options": ["a⁵", "a⁶", "2a⁵", "a²³"], "answer": "a⁵"},
+        {"text": "What is 10⁰?", "options": ["0", "1", "10", "Undefined"], "answer": "1"},
+        {"text": "Simplify: (2³)²", "options": ["2⁵", "2⁶", "4³", "2⁹"], "answer": "2⁶"}
+      ]
+    },
+    {
+      "id": "ratios",
+      "label": "Ratios & Proportions",
+      "depth": 2,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["fractions"],
+      "questions": [
+        {"text": "If a:b = 2:3 and b:c = 3:4, what is a:c?", "options": ["2:4", "1:2", "3:4", "2:3"], "answer": "2:4"},
+        {"text": "What is the ratio 15:25 in simplest form?", "options": ["3:5", "1:2", "5:3", "15:25"], "answer": "3:5"},
+        {"text": "If 3x = 4y, what is x:y?", "options": ["3:4", "4:3", "1:1", "12:1"], "answer": "4:3"}
+      ]
+    },
+    {
+      "id": "algebra_basics",
+      "label": "Algebraic Expressions",
+      "depth": 2,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["integers", "fractions"],
+      "questions": [
+        {"text": "Simplify: 3x + 5x", "options": ["8x", "15x", "8x²", "35x"], "answer": "8x"},
+        {"text": "What is the coefficient of y in 7xy?", "options": ["7", "7x", "x", "y"], "answer": "7x"},
+        {"text": "Expand: 2(x + 3)", "options": ["2x + 3", "2x + 6", "x + 6", "2x + 5"], "answer": "2x + 6"},
+        {"text": "Simplify: 4a - 2a + 3a", "options": ["5a", "9a", "a", "3a"], "answer": "5a"}
+      ]
+    },
+    {
+      "id": "linear_equations",
+      "label": "Linear Equations",
+      "depth": 3,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["algebra_basics"],
+      "questions": [
+        {"text": "Solve: 2x + 5 = 13", "options": ["x = 4", "x = 9", "x = 3", "x = 6"], "answer": "x = 4"},
+        {"text": "Solve: 3(x - 2) = 12", "options": ["x = 6", "x = 4", "x = 2", "x = 14"], "answer": "x = 6"},
+        {"text": "If 5x - 3 = 2x + 9, find x", "options": ["4", "3", "2", "6"], "answer": "4"},
+        {"text": "Solve: x/3 + 2 = 5", "options": ["x = 9", "x = 1", "x = 3", "x = 7"], "answer": "x = 9"}
+      ]
+    },
+    {
+      "id": "linear_inequalities",
+      "label": "Linear Inequalities",
+      "depth": 4,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["linear_equations"],
+      "questions": [
+        {"text": "Solve: 2x + 1 > 7", "options": ["x > 3", "x > 4", "x < 3", "x > 6"], "answer": "x > 3"},
+        {"text": "If -3x < 9, then:", "options": ["x < -3", "x > -3", "x > 3", "x < 3"], "answer": "x > -3"},
+        {"text": "Which value satisfies x + 4 ≤ 10?", "options": ["7", "6", "8", "11"], "answer": "6"}
+      ]
+    },
+    {
+      "id": "percentages",
+      "label": "Percentages",
+      "depth": 3,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["ratios", "fractions"],
+      "questions": [
+        {"text": "What is 25% of 200?", "options": ["50", "25", "75", "100"], "answer": "50"},
+        {"text": "Express 3/5 as a percentage", "options": ["30%", "60%", "35%", "65%"], "answer": "60%"},
+        {"text": "A shirt costs ₹500 after 20% discount. Original price?", "options": ["₹600", "₹625", "₹550", "₹700"], "answer": "₹625"}
+      ]
+    },
+    {
+      "id": "geometry_basics",
+      "label": "Basic Geometry",
+      "depth": 1,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["numbers_basics"],
+      "questions": [
+        {"text": "Sum of angles in a triangle?", "options": ["90°", "180°", "270°", "360°"], "answer": "180°"},
+        {"text": "How many sides does a hexagon have?", "options": ["5", "6", "7", "8"], "answer": "6"},
+        {"text": "What is the angle in a straight line?", "options": ["90°", "180°", "270°", "360°"], "answer": "180°"}
+      ]
+    },
+    {
+      "id": "triangles",
+      "label": "Triangles & Congruence",
+      "depth": 2,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["geometry_basics"],
+      "questions": [
+        {"text": "In a right triangle, which side is longest?", "options": ["Base", "Height", "Hypotenuse", "All equal"], "answer": "Hypotenuse"},
+        {"text": "SSS, SAS, ASA are criteria for:", "options": ["Similarity", "Congruence", "Symmetry", "Area"], "answer": "Congruence"},
+        {"text": "An equilateral triangle has all angles equal to:", "options": ["90°", "60°", "45°", "120°"], "answer": "60°"}
+      ]
+    },
+    {
+      "id": "quadrilaterals",
+      "label": "Quadrilaterals",
+      "depth": 3,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["triangles"],
+      "questions": [
+        {"text": "Sum of interior angles of a quadrilateral?", "options": ["180°", "270°", "360°", "540°"], "answer": "360°"},
+        {"text": "A rhombus has:", "options": ["All sides equal", "All angles 90°", "Only opposite sides equal", "No equal sides"], "answer": "All sides equal"},
+        {"text": "Diagonals of a rectangle are:", "options": ["Unequal", "Equal", "Perpendicular", "None"], "answer": "Equal"}
+      ]
+    },
+    {
+      "id": "area_perimeter",
+      "label": "Area & Perimeter",
+      "depth": 3,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["triangles", "algebra_basics"],
+      "questions": [
+        {"text": "Area of a triangle with base 10 and height 6?", "options": ["60", "30", "16", "36"], "answer": "30"},
+        {"text": "Perimeter of a square with side 5cm?", "options": ["10cm", "20cm", "25cm", "15cm"], "answer": "20cm"},
+        {"text": "Area of a circle with radius 7? (π=22/7)", "options": ["44", "154", "22", "308"], "answer": "154"}
+      ]
+    },
+    {
+      "id": "data_handling",
+      "label": "Data Handling & Statistics",
+      "depth": 2,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["fractions"],
+      "questions": [
+        {"text": "Mean of 2, 4, 6, 8, 10?", "options": ["4", "5", "6", "8"], "answer": "6"},
+        {"text": "Median of 3, 7, 1, 9, 5?", "options": ["5", "7", "3", "1"], "answer": "5"},
+        {"text": "Mode of 2, 3, 3, 5, 7, 3?", "options": ["2", "3", "5", "7"], "answer": "3"}
+      ]
+    },
+    {
+      "id": "probability",
+      "label": "Probability",
+      "depth": 3,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["data_handling", "fractions"],
+      "questions": [
+        {"text": "Probability of getting heads in a fair coin toss?", "options": ["0", "1/2", "1", "1/4"], "answer": "1/2"},
+        {"text": "A die is thrown. P(even number)?", "options": ["1/6", "1/3", "1/2", "2/3"], "answer": "1/2"},
+        {"text": "If P(E) = 0.3, what is P(not E)?", "options": ["0.3", "0.7", "1", "0"], "answer": "0.7"}
+      ]
+    },
+    {
+      "id": "coordinate_geometry",
+      "label": "Coordinate Geometry",
+      "depth": 4,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["linear_equations", "geometry_basics"],
+      "questions": [
+        {"text": "In which quadrant is (-3, 4)?", "options": ["I", "II", "III", "IV"], "answer": "II"},
+        {"text": "What is the origin?", "options": ["(1,1)", "(0,0)", "(0,1)", "(1,0)"], "answer": "(0,0)"},
+        {"text": "Distance between (0,0) and (3,4)?", "options": ["5", "7", "12", "1"], "answer": "5"}
+      ]
+    },
+    {
+      "id": "polynomials",
+      "label": "Polynomials",
+      "depth": 4,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["linear_equations", "exponents"],
+      "questions": [
+        {"text": "Degree of 3x²y + 5xy²?", "options": ["2", "3", "5", "4"], "answer": "3"},
+        {"text": "What is the zero of p(x) = x - 5?", "options": ["0", "5", "-5", "1"], "answer": "5"},
+        {"text": "(x+2)(x+3) = ?", "options": ["x²+5x+6", "x²+6x+5", "x²+5x+5", "2x+5"], "answer": "x²+5x+6"}
+      ]
+    },
+    {
+      "id": "quadratic_equations",
+      "label": "Quadratic Equations",
+      "depth": 5,
+      "subject": "math",
+      "grade": 8,
+      "prerequisites": ["polynomials"],
+      "questions": [
+        {"text": "Standard form of a quadratic equation?", "options": ["ax+b=0", "ax²+bx+c=0", "ax³+bx=0", "a/x+b=0"], "answer": "ax²+bx+c=0"},
+        {"text": "Discriminant of x²-4x+4=0?", "options": ["0", "4", "8", "-4"], "answer": "0"},
+        {"text": "Sum of roots of x²-5x+6=0?", "options": ["5", "-5", "6", "-6"], "answer": "5"}
+      ]
+    }
+  ]
+}
