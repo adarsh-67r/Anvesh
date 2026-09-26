@@ -14,7 +14,7 @@ import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { api } from "../../lib/api";
+import { api, Attachment, GROUP_FILE_TYPES, openAttachment, pickFile, uploadAttachment } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
@@ -31,6 +31,8 @@ export default function ProfileScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [decks, setDecks] = useState<SharedDeck[]>([]);
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
   const copyCode = async (code: string) => {
@@ -42,7 +44,24 @@ export default function ProfileScreen() {
   const loadDecks = async (groupId: string) => {
     if (expandedGroup === groupId) { setExpandedGroup(null); return; }
     setExpandedGroup(groupId);
-    try { setDecks(await api.get<SharedDeck[]>(`/api/groups/${groupId}/decks`)); } catch { setDecks([]); }
+    setDecks([]);
+    setFiles([]);
+    api.get<SharedDeck[]>(`/api/groups/${groupId}/decks`).then(setDecks).catch(() => {});
+    api.get<Attachment[]>(`/api/groups/${groupId}/files`).then(setFiles).catch(() => {});
+  };
+
+  const uploadGroupFile = async (groupId: string) => {
+    try {
+      const picked = await pickFile(GROUP_FILE_TYPES);
+      if (!picked) return;
+      setUploading(true);
+      const uploaded = await uploadAttachment(picked, groupId);
+      setFiles((prev) => [uploaded, ...prev]);
+    } catch (e: any) {
+      Alert.alert("Upload failed", e.message || "Could not upload the file.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const load = useCallback(async () => {
@@ -179,6 +198,44 @@ export default function ProfileScreen() {
                     </View>
                   </View>
                 ))}
+
+                <View style={styles.filesHeader}>
+                  <Text style={styles.decksTitle}>Shared Files ({files.length})</Text>
+                  <TouchableOpacity
+                    style={styles.uploadBtn}
+                    onPress={() => uploadGroupFile(g.id)}
+                    disabled={uploading}
+                    accessibilityLabel="Upload a file to this group"
+                  >
+                    <MaterialIcons name="upload-file" size={18} color={colors.primary} />
+                    <Text style={styles.uploadBtnText}>{uploading ? "Uploading..." : "Upload"}</Text>
+                  </TouchableOpacity>
+                </View>
+                {files.length === 0 && <Text style={styles.emptyText}>No files yet. Images, PDFs and Office docs up to 5 MB.</Text>}
+                {files.map((f) => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={styles.deckCard}
+                    onPress={() => openAttachment(f.id).catch(() => Alert.alert("Error", "Could not open the file."))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${f.filename}`}
+                  >
+                    <MaterialIcons
+                      name={f.content_type.startsWith("image/") ? "image" : f.content_type === "application/pdf" ? "picture-as-pdf" : "description"}
+                      size={20}
+                      color={colors.secondary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.deckName} numberOfLines={1}>{f.filename}</Text>
+                      {f.size ? (
+                        <Text style={styles.groupCode}>
+                          {f.size < 1024 ? `${f.size} B` : f.size < 1048576 ? `${Math.round(f.size / 1024)} KB` : `${(f.size / 1048576).toFixed(1)} MB`}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <MaterialIcons name="open-in-new" size={18} color={colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
           </View>
@@ -307,4 +364,12 @@ const styles = StyleSheet.create({
     borderColor: colors.errorLight,
   },
   logoutText: { ...typography.labelLg, color: colors.error },
+  filesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  uploadBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, padding: spacing.xs },
+  uploadBtnText: { ...typography.labelMd, color: colors.primary },
 });

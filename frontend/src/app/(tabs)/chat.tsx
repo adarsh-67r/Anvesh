@@ -15,10 +15,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
-import { api } from "../../lib/api";
+import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
-type Message = { role: string; content: string; created_at: string };
+type Message = { role: string; content: string; created_at: string; attachment?: Attachment | null };
+
+const fileIcon = (type: string) => (type.startsWith("image/") ? "image" : type === "application/pdf" ? "picture-as-pdf" : "description");
 
 const speakText = (text: string) => {
   if (Platform.OS === "web" && typeof window !== "undefined" && window.speechSynthesis) {
@@ -34,6 +36,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [pending, setPending] = useState<PickedFile | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
@@ -42,15 +45,35 @@ export default function ChatScreen() {
     }, [])
   );
 
+  const attach = async () => {
+    try {
+      const picked = await pickFile(AI_FILE_TYPES);
+      if (picked) setPending(picked);
+    } catch (e: any) {
+      Alert.alert("Attachment", e.message || "Could not open the file.");
+    }
+  };
+
   const send = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    const file = pending;
+    if ((!text && !file) || sending) return;
     setInput("");
-    const userMsg: Message = { role: "user", content: text, created_at: new Date().toISOString() };
+    setPending(null);
+    const userMsg: Message = {
+      role: "user",
+      content: text || "Please help me with this file.",
+      created_at: new Date().toISOString(),
+      attachment: file ? { id: "", filename: file.name, content_type: file.mimeType } : null,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
     try {
-      const res = await api.post<{ reply: string }>("/api/chat", { message: text });
+      const uploaded = file ? await uploadAttachment(file) : null;
+      if (uploaded) {
+        setMessages((prev) => prev.map((m) => (m === userMsg ? { ...m, attachment: uploaded } : m)));
+      }
+      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: res.reply, created_at: new Date().toISOString() },
@@ -102,6 +125,18 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+              {msg.attachment && (
+                <TouchableOpacity
+                  style={styles.fileChip}
+                  disabled={!msg.attachment.id}
+                  onPress={() => msg.attachment?.id && openAttachment(msg.attachment.id).catch(() => Alert.alert("Attachment", "Could not open the file."))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${msg.attachment.filename}`}
+                >
+                  <MaterialIcons name={fileIcon(msg.attachment.content_type)} size={18} color={colors.primary} />
+                  <Text style={styles.fileChipText} numberOfLines={1}>{msg.attachment.filename}</Text>
+                </TouchableOpacity>
+              )}
               <Text style={[styles.bubbleText, msg.role === "user" && styles.userBubbleText]}>
                 {msg.content}
               </Text>
@@ -114,7 +149,24 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
+        {pending && (
+          <View style={styles.pendingBar}>
+            <MaterialIcons name={fileIcon(pending.mimeType)} size={18} color={colors.primary} />
+            <Text style={styles.pendingText} numberOfLines={1}>{pending.name}</Text>
+            <TouchableOpacity onPress={() => setPending(null)} hitSlop={8} accessibilityLabel="Remove attachment">
+              <MaterialIcons name="close" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.inputBar}>
+          <TouchableOpacity
+            style={styles.micBtn}
+            onPress={attach}
+            disabled={sending}
+            accessibilityLabel="Attach image or PDF"
+          >
+            <MaterialIcons name="attach-file" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Ask your AI tutor..."
@@ -131,9 +183,10 @@ export default function ChatScreen() {
             <MaterialIcons name="mic" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, ((!input.trim() && !pending) || sending) && styles.sendBtnDisabled]}
             onPress={send}
-            disabled={!input.trim() || sending}
+            disabled={(!input.trim() && !pending) || sending}
+            accessibilityLabel="Send message"
           >
             <MaterialIcons name="send" size={20} color="#FFFFFF" />
           </TouchableOpacity>
@@ -218,4 +271,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sendBtnDisabled: { opacity: 0.5 },
+  fileChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceWhite,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+    maxWidth: 240,
+  },
+  fileChipText: { ...typography.labelMd, color: colors.primary, flexShrink: 1 },
+  pendingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  pendingText: { ...typography.bodyMd, color: colors.text, flex: 1 },
 });
