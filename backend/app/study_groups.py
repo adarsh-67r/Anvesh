@@ -1,4 +1,6 @@
 import secrets
+from datetime import datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -7,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Flashcard, GroupMember, SharedDeck, StudyGroup, User
+from app.models import Attachment, Flashcard, GroupMember, GroupMessage, SharedDeck, StudyGroup, User
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
@@ -22,6 +24,31 @@ class JoinGroupRequest(BaseModel):
 
 class ShareDeckRequest(BaseModel):
     flashcard_ids: list[str]
+
+
+class SendMessageRequest(BaseModel):
+    content: str = ""
+    attachment_id: UUID | None = None
+
+
+async def _require_member(db: AsyncSession, group_id: UUID, user_id: UUID) -> None:
+    found = (
+        await db.execute(select(GroupMember.id).where(GroupMember.group_id == group_id, GroupMember.user_id == user_id))
+    ).first()
+    if not found:
+        raise HTTPException(status_code=403, detail="Not a member")
+
+
+def _message_out(m: GroupMessage, sender: str, filename: str | None, content_type: str | None) -> dict:
+    return {
+        "id": str(m.id),
+        "user_id": str(m.user_id),
+        "sender": sender,
+        "content": m.content,
+        "created_at": m.created_at.isoformat(),
+        "attachment": {"id": str(m.attachment_id), "filename": filename, "content_type": content_type}
+        if m.attachment_id else None,
+    }
 
 
 @router.get("")
@@ -111,3 +138,48 @@ async def group_decks(group_id: str, user: User = Depends(get_current_user), db:
             "cards": [{"front": c.front, "back": c.back, "skill_id": c.skill_id} for c in cards],
         })
     return results
+
+
+@router.get("/{group_id}/messages")
+async def list_messages(
+    group_id: UUID,
+    after: datetime | None = None,
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Newest `limit` messages, or only those after `after` when polling."""
+    await _require_member(db, group_id, user.id)
+    q = (
+        select(GroupMessage, User.name, Attachment.filename, Attachment.content_type)
+        .join(User, User.id == GroupMessage.user_id)
+        .outerjoin(Attachment, Attachment.id == GroupMessage.attachment_id)
+        .where(GroupMessage.group_id == group_id)
+    )
+    if after:
+        q = q.where(GroupMessage.created_at > after.replace(tzinfo=None))
+    rows = (await db.execute(q.order_by(GroupMessage.created_at.desc()).limit(min(limit, 200)))).all()
+    rows.reverse()
+    return [_message_out(m, name, fn, ct) for m, name, fn, ct in rows]
+
+
+@router.post("/{group_id}/messages")
+async def send_message(
+    group_id: UUID, body: SendMessageRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    await _require_member(db, group_id, user.id)
+    content = body.content.strip()[:4000]
+    attachment = None
+    if body.attachment_id:
+        attachment = await db.get(Attachment, body.attachment_id)
+        if not attachment or attachment.group_id != group_id:
+            raise HTTPException(status_code=404, detail="Attachment not found in this group")
+    if not content and not attachment:
+        raise HTTPException(status_code=400, detail="Message is empty")
+
+    msg = GroupMessage(group_id=group_id, user_id=user.id, content=content, attachment_id=body.attachment_id)
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return _message_out(msg, user.name, attachment.filename if attachment else None,
+                        attachment.content_type if attachment else None)

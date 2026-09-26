@@ -188,6 +188,14 @@ export default function ProfileScreen() {
             </TouchableOpacity>
             {expandedGroup === g.id && (
               <View style={styles.decksSection}>
+                <TouchableOpacity
+                  style={styles.chatBtn}
+                  onPress={() => router.push({ pathname: "/group/[id]", params: { id: g.id, name: g.name } })}
+                  accessibilityRole="button"
+                >
+                  <MaterialIcons name="forum" size={20} color="#FFFFFF" />
+                  <Text style={styles.chatBtnText}>Open group chat</Text>
+                </TouchableOpacity>
                 <Text style={styles.decksTitle}>Shared Decks ({decks.length})</Text>
                 {decks.length === 0 && <Text style={styles.emptyText}>No shared decks yet</Text>}
                 {decks.map((d) => (
@@ -370,6 +378,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.md,
   },
+  chatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    height: 44,
+    borderRadius: radii.lg,
+    backgroundColor: colors.primary,
+    marginBottom: spacing.md,
+  },
+  chatBtnText: { ...typography.labelLg, color: "#FFFFFF" },
   uploadBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, padding: spacing.xs },
   uploadBtnText: { ...typography.labelMd, color: colors.primary },
 });
