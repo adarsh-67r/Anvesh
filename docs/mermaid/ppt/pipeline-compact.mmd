@@ -1,18 +1,46 @@
-%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '22px', 'lineColor': '#64748B', 'edgeLabelBackground': '#FFFFFF', 'textColor': '#334155'}, 'flowchart': {'nodeSpacing': 70, 'rankSpacing': 60, 'curve': 'basis'}}}%%
-flowchart TB
-    ANS("📝 Student<br/>answers") --> ORC{"Enough<br/>data?"}
-    ORC -->|day 1| EMA("EMA")
-    ORC -->|200+ answers| BKT("BKT")
-    ORC -->|10+ students| IRT("IRT")
-    EMA --> NEXT("🎯 Next skill<br/>prereqs met")
-    BKT --> NEXT
-    IRT --> NEXT
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '20px', 'lineColor': '#64748B', 'edgeLabelBackground': '#FFFFFF', 'textColor': '#334155', 'clusterBkg': '#F8FAFC', 'clusterBorder': '#CBD5E1'}, 'flowchart': {'nodeSpacing': 22, 'rankSpacing': 45, 'curve': 'basis'}}}%%
+flowchart LR
+    STU("👩‍🎓 Student")
 
-    classDef input fill:#ECFDF5,stroke:#059669,stroke-width:2px,color:#064E3B
+    subgraph S1["① Capture"]
+        LOG("📝 Event Logger<br/>answers, time,<br/>videos, reviews")
+    end
+
+    subgraph S2["② Model mastery per skill"]
+        direction TB
+        ORC{{"Orchestrator<br/>picks model"}}
+        EMA("EMA · day 1<br/>0.3·new + 0.7·old")
+        BKT("BKT · 200+ answers<br/>P(learned), HMM")
+        IRT("IRT · 10+ students<br/>ability vs difficulty")
+        FUT("DKT / Semi-MoE<br/>future, at scale")
+    end
+
+    subgraph S3["③ Recommend"]
+        direction TB
+        KG{{"Knowledge Graph<br/>prereqs mastered?"}}
+        NEXT("🎯 Next best skill")
+        RISK("⚠️ Dropout risk")
+    end
+
+    STU --> LOG --> ORC
+    ORC --> IRT & BKT & EMA
+    ORC -.-> FUT
+    IRT & BKT & EMA --> KG
+    KG --> NEXT
+    KG --> RISK
+    NEXT -.->|practice & quiz| STU
+
+    classDef stu fill:#ECFDF5,stroke:#059669,stroke-width:2px,color:#064E3B
+    classDef log fill:#E0F2FE,stroke:#0284C7,stroke-width:2px,color:#0C4A6E
     classDef orch fill:#FFFBEB,stroke:#D97706,stroke-width:2px,color:#78350F
     classDef phase fill:#EEF2FF,stroke:#6366F1,stroke-width:2px,color:#1E1B4B
+    classDef future fill:#F8FAFC,stroke:#94A3B8,stroke-width:2px,stroke-dasharray: 6 4,color:#475569
     classDef hero fill:#4F46E5,stroke:#3730A3,stroke-width:2px,color:#FFFFFF
-    class ANS input
-    class ORC orch
+    classDef risk fill:#FEF2F2,stroke:#DC2626,stroke-width:2px,color:#7F1D1D
+    class STU stu
+    class LOG log
+    class ORC,KG orch
     class EMA,BKT,IRT phase
+    class FUT future
     class NEXT hero
+    class RISK risk
