@@ -6,12 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Link, useFocusEffect } from "expo-router";
-import { api } from "../../lib/api";
+import { api, StudyStatus } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type Skill = {
@@ -31,24 +30,13 @@ type Todo = {
 
 type DropoutRisk = { risk_score: number; risk_level: string };
 
-function getStudyMinutesToday(): number {
-  try {
-    const stored = JSON.parse(
-      (Platform.OS === "web" ? localStorage.getItem("studyTime") : null) || "{}"
-    );
-    const today = new Date().toISOString().split("T")[0];
-    return stored[today] || 0;
-  } catch {
-    return 0;
-  }
-}
-
 export default function DashboardScreen() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [mastery, setMastery] = useState<{ mastery_score: number; is_mastered: boolean }[]>([]);
   const [dropout, setDropout] = useState<DropoutRisk | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [study, setStudy] = useState<StudyStatus | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -58,6 +46,7 @@ export default function DashboardScreen() {
         api.get<{ mastery_score: number; is_mastered: boolean }[]>("/api/recommend/mastery"),
         api.get<DropoutRisk>("/api/recommend/dropout-risk").catch(() => null),
       ]);
+      api.get<StudyStatus>("/api/game/status").then(setStudy).catch(() => {});
       setSkills(s);
       setTodos(t);
       setMastery(m);
@@ -77,7 +66,7 @@ export default function DashboardScreen() {
   const masteredCount = mastery.filter((m) => m.is_mastered).length;
   const dueTodos = todos.filter((t) => !t.is_done).slice(0, 3);
   const doneCount = todos.filter((t) => t.is_done).length;
-  const studyMins = getStudyMinutesToday();
+  const studyMins = study?.study_minutes ?? 0;
   const studyGoal = 120;
 
   const onRefresh = async () => {

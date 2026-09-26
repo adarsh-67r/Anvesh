@@ -1,34 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { api, StudyStatus } from "../lib/api";
 import { colors, typography, spacing, radii } from "../lib/theme";
-
-const STUDY_KEY = "anvesh_study_time";
-const todayKey = () => new Date().toISOString().split("T")[0];
-
-// ponytail: localStorage on web, in-memory on native; swap for AsyncStorage when installed
-const studyStore = {
-  get: (): number => {
-    if (Platform.OS === "web") {
-      try {
-        const data = JSON.parse(localStorage.getItem(STUDY_KEY) || "{}");
-        return data[todayKey()] || 0;
-      } catch { return 0; }
-    }
-    return 0;
-  },
-  add: (mins: number) => {
-    if (Platform.OS === "web") {
-      try {
-        const data = JSON.parse(localStorage.getItem(STUDY_KEY) || "{}");
-        data[todayKey()] = (data[todayKey()] || 0) + mins;
-        localStorage.setItem(STUDY_KEY, JSON.stringify(data));
-      } catch {}
-    }
-  },
-};
 
 const FOCUS = 25 * 60;
 const SHORT_BREAK = 5 * 60;
@@ -41,7 +17,13 @@ export default function PomodoroScreen() {
   const [running, setRunning] = useState(false);
   const [session, setSession] = useState(1);
   const [mode, setMode] = useState<"focus" | "short" | "long">("focus");
-  const [studyMinutes, setStudyMinutes] = useState(studyStore.get);
+  const [status, setStatus] = useState<StudyStatus | null>(null);
+  const studyMinutes = status?.study_minutes ?? 0;
+
+  const refreshStatus = useCallback(() => {
+    api.get<StudyStatus>("/api/game/status").then(setStatus).catch(() => {});
+  }, []);
+  useFocusEffect(refreshStatus);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -51,8 +33,10 @@ export default function PomodoroScreen() {
           if (s <= 1) {
             setRunning(false);
             if (mode === "focus") {
-              studyStore.add(25);
-              setStudyMinutes(studyStore.get());
+              setStatus((st) => st && { ...st, study_minutes: st.study_minutes + 25, unlocked: st.study_minutes + 25 >= st.required_minutes });
+              api.post("/api/recommend/events", { event_type: "study_session", skill_id: "general", context: { minutes: 25 } })
+                .then(refreshStatus)
+                .catch(() => {});
               if (session % 4 === 0) {
                 setMode("long");
                 return LONG_BREAK;
@@ -69,7 +53,7 @@ export default function PomodoroScreen() {
       }, 1000);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, mode, session]);
+  }, [running, mode, session, refreshStatus]);
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -151,6 +135,20 @@ export default function PomodoroScreen() {
             <View style={[styles.progressFill, { width: `${Math.min(100, (studyMinutes / DAILY_GOAL) * 100)}%` }]} />
           </View>
           <Text style={styles.progressLabel}>{studyMinutes} / {DAILY_GOAL} min goal</Text>
+          {status && (
+            <View style={styles.unlockRow}>
+              <MaterialIcons
+                name={status.unlocked ? "lock-open" : "lock"}
+                size={16}
+                color={status.unlocked ? colors.tertiaryDark : colors.textSecondary}
+              />
+              <Text style={[styles.progressLabel, status.unlocked && { color: colors.tertiaryDark }]}>
+                {status.unlocked
+                  ? "Quiz games unlocked"
+                  : `${status.required_minutes - status.study_minutes} more focus minutes to unlock quiz games`}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -214,4 +212,5 @@ const styles = StyleSheet.create({
   progressTrack: { height: 8, backgroundColor: colors.border, borderRadius: radii.full, overflow: "hidden" as const },
   progressFill: { height: 8, backgroundColor: colors.primary, borderRadius: radii.full },
   progressLabel: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs, textAlign: "center" as const },
+  unlockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
 });

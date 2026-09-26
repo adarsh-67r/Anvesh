@@ -1,7 +1,7 @@
 import hashlib
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,10 +9,11 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.llm import generate
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import GameSession, Skill, User
+from app.llm import generate
+from app.models import GameSession, LearningEvent, Skill, User
 from app.recommendation.orchestrator import record_answer
 
 router = APIRouter(prefix="/api/game", tags=["game"])
@@ -48,8 +49,37 @@ async def _generate_questions(skill_label: str) -> list[dict]:
         return []
 
 
+async def _study_minutes_today(db: AsyncSession, user_id) -> int:
+    """Focus minutes logged by the pomodoro timer in the last 24 hours."""
+    rows = (
+        await db.execute(
+            select(LearningEvent.context).where(
+                LearningEvent.user_id == user_id,
+                LearningEvent.event_type == "study_session",
+                LearningEvent.created_at >= datetime.utcnow() - timedelta(hours=24),
+            )
+        )
+    ).scalars().all()
+    # ponytail: minutes are client-reported (capped at one 25-minute pomodoro each); verify server-side timing if it matters
+    return sum(min(max(int((c or {}).get("minutes", 0) or 0), 0), 25) for c in rows)
+
+
+@router.get("/status")
+async def game_status(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    minutes = await _study_minutes_today(db, user.id)
+    required = settings.game_unlock_minutes
+    return {"study_minutes": minutes, "required_minutes": required, "unlocked": minutes >= required}
+
+
 @router.get("/quiz/{skill_id}")
 async def get_quiz(skill_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    minutes = await _study_minutes_today(db, user.id)
+    if minutes < settings.game_unlock_minutes:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Quiz unlocks after {settings.game_unlock_minutes} minutes of focused study. "
+                   f"You have {minutes} so far today.",
+        )
     skill = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -96,7 +126,9 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
         correct = ans.get("selected") == q.get("answer")
         score += correct
         qid = hashlib.sha1(q.get("text", "").encode()).hexdigest()[:16]
-        await record_answer(db, str(user.id), session.skill_id, correct, question_id=qid)
+        time_ms = ans.get("time_ms")
+        await record_answer(db, str(user.id), session.skill_id, correct, question_id=qid,
+                            response_time_ms=time_ms if isinstance(time_ms, int) and 0 < time_ms < 600000 else None)
 
     session.score = score
     session.completed_at = datetime.utcnow()

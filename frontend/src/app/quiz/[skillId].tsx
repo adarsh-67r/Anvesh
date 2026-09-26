@@ -30,6 +30,9 @@ export default function QuizScreen() {
   const [streak, setStreak] = useState(0);
   const [answered, setAnswered] = useState<Record<number, boolean>>({});
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qStartRef = useRef(Date.now());
+  const [answerMs, setAnswerMs] = useState<Record<number, number>>({});
+  const [blocked, setBlocked] = useState<{ locked: boolean; message: string } | null>(null);
 
   useEffect(() => {
     api.get<GraphNode[]>("/api/recommend/graph").then((nodes) => {
@@ -40,17 +43,26 @@ export default function QuizScreen() {
   const startQuiz = useCallback(async (sid: string) => {
     setLoading(true);
     setShowPicker(false);
+    setBlocked(null);
     try {
       const data = await api.get<QuizData>(`/api/game/quiz/${sid}`);
       setQuiz(data);
       setCurrentQ(0);
       setSelected({});
+      setAnswerMs({});
       setResult(null);
       setScore(0);
       setStreak(0);
       setAnswered({});
       setTimer(15);
-    } catch {} finally {
+    } catch (e: any) {
+      const detail = (() => { try { return JSON.parse(e.message).detail as string; } catch { return ""; } })();
+      setBlocked(
+        detail.includes("unlocks")
+          ? { locked: true, message: detail }
+          : { locked: false, message: "Could not load the quiz. Check your connection and try again." }
+      );
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -65,7 +77,7 @@ export default function QuizScreen() {
   useEffect(() => {
     if (!quiz || result || showPicker) return;
     if (timerRef.current) clearInterval(timerRef.current);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    qStartRef.current = Date.now();
     setTimer(15);
     timerRef.current = setInterval(() => {
       setTimer((t) => {
@@ -85,6 +97,7 @@ export default function QuizScreen() {
   const selectOption = (opt: string) => {
     if (answered[currentQ] !== undefined) return;
     setSelected((prev) => ({ ...prev, [currentQ]: opt }));
+    setAnswerMs((prev) => ({ ...prev, [currentQ]: Date.now() - qStartRef.current }));
   };
 
   const next = () => {
@@ -99,6 +112,7 @@ export default function QuizScreen() {
     const answers = Object.entries(selected).map(([idx, sel]) => ({
       question_idx: Number(idx),
       selected: sel,
+      time_ms: answerMs[Number(idx)],
     }));
     try {
       const res = await api.post<Result>("/api/game/submit", {
@@ -159,6 +173,33 @@ export default function QuizScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.loadingText}>Loading quiz...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (blocked) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.resultContainer}>
+          <MaterialIcons name={blocked.locked ? "lock-clock" : "cloud-off"} size={56} color={colors.secondary} />
+          <Text style={styles.resultMsg}>{blocked.locked ? "Quiz locked" : "Quiz unavailable"}</Text>
+          <Text style={[styles.loadingText, { textAlign: "center" }]}>{blocked.message}</Text>
+          {blocked.locked ? (
+            <TouchableOpacity style={styles.doneBtn} onPress={() => router.replace("/pomodoro")}>
+              <Text style={styles.doneBtnText}>Start a focus session</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.doneBtn} onPress={() => startQuiz(selectedSkill || skillId || "")}>
+              <Text style={styles.doneBtnText}>Try again</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.doneBtn, { backgroundColor: colors.primaryLight, marginTop: spacing.sm }]}
+            onPress={() => router.back()}
+          >
+            <Text style={[styles.doneBtnText, { color: colors.primary }]}>Back</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
