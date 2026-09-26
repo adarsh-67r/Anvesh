@@ -1,0 +1,32 @@
+flowchart LR
+    subgraph APP["📱 Android App"]
+        direction TB
+        UI["Dashboard • Learning<br/>Flashcards • AI Tutor<br/>Timer • Quiz • Groups"]
+        OFF["Offline Flashcard Cache<br/>(auto-sync)"]
+    end
+
+    subgraph SRV["☁️ FastAPI Backend (Render)"]
+        direction TB
+        SVC["Auth (JWT) • Flashcards (SM-2) • Todos<br/>Quiz Game • Study Groups (chat + files)<br/>AI Tutor (voice + photo/PDF)"]
+        LOG["Event Logger"]
+        subgraph REC["🧠 Recommendation Engine"]
+            direction LR
+            KG["Knowledge Graph<br/>(prerequisites)"] --> ORC["Orchestrator<br/>(auto phase)"]
+            ORC --> P["Phase 0: EMA<br/>Phase 1: BKT<br/>Phase 2: IRT"]
+            ORC -.-> FUT["Phase 3-4: DKT / MoE<br/>(future)"]
+        end
+        SVC --> LOG --> REC
+    end
+
+    subgraph EXT["External Services"]
+        direction LR
+        GEM["Google Gemini<br/>(AI tutor, quiz, voice)"]
+        DB["Supabase<br/>PostgreSQL"]
+    end
+
+    APP -->|REST + JWT| SVC
+    SVC -->|AI + data| EXT
+
+    style REC fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#111827
+    style APP fill:#f0fdf4,stroke:#22c55e,color:#111827
+    style FUT fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 5 5,color:#111827

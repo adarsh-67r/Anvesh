@@ -1,0 +1,15 @@
+flowchart LR
+    ANS["📝 Student answers<br/>(quiz, practice)"] --> LOG["Event Logger<br/>answer + response time"]
+    LOG --> ORC{"Orchestrator<br/>data per skill?"}
+    ORC -->|"< 200 answers"| P0["Phase 0: EMA<br/>works from day 1"]
+    ORC -->|"200+ answers"| P1["Phase 1: BKT<br/>Bayesian tracing"]
+    ORC -->|"200+ answers, 10+ students"| P2["Phase 2: IRT<br/>2PL model"]
+    P0 --> M["Mastery score<br/>per skill"]
+    P1 --> M
+    P2 --> M
+    M --> REC["🎯 Next skills<br/>(prerequisites met)"]
+    M --> RISK["⚠️ Dropout risk"]
+
+    style ORC fill:#fef3c7,stroke:#f59e0b,color:#111827
+    style REC fill:#dcfce7,stroke:#22c55e,color:#111827
+    style M fill:#dbeafe,stroke:#3b82f6,color:#111827
