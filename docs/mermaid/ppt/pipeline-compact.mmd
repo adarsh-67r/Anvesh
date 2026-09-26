@@ -1,0 +1,18 @@
+%%{init: {'themeVariables': {'fontSize': '22px'}, 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 50}}}%%
+flowchart TB
+    ANS["📝 Student<br/>answers"] --> ORC{"Enough<br/>data?"}
+    ORC -->|day 1| EMA["EMA"]
+    ORC -->|200+ answers| BKT["BKT"]
+    ORC -->|10+ students| IRT["IRT"]
+    EMA --> NEXT["🎯 Next skill<br/>prereqs met"]
+    BKT --> NEXT
+    IRT --> NEXT
+
+    classDef input fill:#16a34a,stroke:#15803d,color:#fff
+    classDef orch fill:#d97706,stroke:#b45309,color:#fff
+    classDef phase fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef out fill:#7c3aed,stroke:#6d28d9,color:#fff
+    class ANS input
+    class ORC orch
+    class EMA,BKT,IRT phase
+    class NEXT out

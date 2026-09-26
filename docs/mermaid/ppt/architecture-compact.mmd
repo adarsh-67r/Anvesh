@@ -1,0 +1,15 @@
+%%{init: {'themeVariables': {'fontSize': '22px'}, 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 50}}}%%
+flowchart TB
+    APP["📱 Android App<br/>offline flashcards"] -->|REST + JWT| API["⚙️ FastAPI Backend<br/>on Render"]
+    API --> REC["🧠 Recommendation<br/>Engine"]
+    API --> GEM["✨ Google Gemini<br/>AI tutor + voice"]
+    API --> DB["🗄️ Supabase<br/>PostgreSQL"]
+
+    classDef app fill:#16a34a,stroke:#15803d,color:#fff
+    classDef api fill:#0891b2,stroke:#0e7490,color:#fff
+    classDef rec fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef ext fill:#7c3aed,stroke:#6d28d9,color:#fff
+    class APP app
+    class API api
+    class REC rec
+    class GEM,DB ext
