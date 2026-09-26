@@ -22,11 +22,13 @@ export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) return;
+  const handleSubmit = (demo = false) => async () => {
+    if (!demo && (!email.trim() || !password.trim())) return;
     setLoading(true);
     try {
-      if (isSignUp) {
+      if (demo) {
+        await login("demo@anvesh.in", "demo1234");
+      } else if (isSignUp) {
         await register(email.trim(), password);
       } else {
         await login(email.trim(), password);
@@ -82,13 +84,22 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSubmit}
+            onPress={handleSubmit()}
             disabled={loading}
             activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>
               {loading ? "Please wait..." : isSignUp ? "Sign Up" : "Log In"}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.demoButton, loading && styles.buttonDisabled]}
+            onPress={handleSubmit(true)}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.demoButtonText}>Try demo account</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.switchBtn}>
@@ -139,6 +150,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   buttonDisabled: { opacity: 0.6 },
+  demoButton: {
+    height: 48,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  demoButtonText: { ...typography.labelLg, color: colors.primary },
   buttonText: { ...typography.labelLg, color: "#FFFFFF" },
   switchBtn: { marginTop: spacing.md, alignItems: "center" },
   switchText: { ...typography.bodyMd, color: colors.textSecondary },
