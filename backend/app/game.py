@@ -1,5 +1,6 @@
+import json
 import random
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,46 +8,70 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import GameSession, User
-from app.recommendation.knowledge_graph import get_graph
+from app.models import GameSession, Skill, User
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
 
 class SubmitAnswersRequest(BaseModel):
     session_id: str
-    answers: list[dict]  # [{question_idx: int, selected: str}]
+    answers: list[dict]
+
+
+_quiz_cache: dict[str, list[dict]] = {}
+
+
+async def _generate_questions(skill_label: str) -> list[dict]:
+    """Generate quiz questions using Gemini."""
+    if skill_label in _quiz_cache:
+        return _quiz_cache[skill_label]
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=settings.gemini_api_key)
+        prompt = (
+            f"Generate 5 multiple choice questions about '{skill_label}'. "
+            f"Return ONLY a JSON array, each object with: "
+            f'"text" (question), "options" (4 strings), "answer" (the correct option string). '
+            f"No markdown, no explanation, just the JSON array."
+        )
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        questions = json.loads(text)
+        _quiz_cache[skill_label] = questions
+        return questions
+    except Exception:
+        return []
 
 
 @router.get("/quiz/{skill_id}")
 async def get_quiz(skill_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    graph = get_graph()
-    node = graph.get_node(skill_id)
-    if not node:
+    skill = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
+    if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
 
-    if not node.questions:
-        raise HTTPException(status_code=404, detail="No questions available for this skill")
+    questions = await _generate_questions(skill.label)
+    if not questions:
+        raise HTTPException(status_code=404, detail="Could not generate questions")
 
-    questions = random.sample(node.questions, min(5, len(node.questions)))
+    selected = random.sample(questions, min(5, len(questions)))
 
-    session = GameSession(user_id=user.id, skill_id=skill_id, total_questions=len(questions))
+    session = GameSession(user_id=user.id, skill_id=skill_id, total_questions=len(selected))
     db.add(session)
     await db.commit()
     await db.refresh(session)
 
     return {
         "session_id": str(session.id),
-        "skill": {"id": node.id, "label": node.label},
+        "skill": {"id": skill.id, "label": skill.label},
         "questions": [
-            {
-                "idx": i,
-                "text": q["text"],
-                "options": q["options"],
-            }
-            for i, q in enumerate(questions)
+            {"idx": i, "text": q["text"], "options": q["options"]}
+            for i, q in enumerate(selected)
         ],
     }
 
@@ -61,9 +86,8 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
     if session.completed_at:
         raise HTTPException(status_code=400, detail="Already completed")
 
-    graph = get_graph()
-    node = graph.get_node(session.skill_id)
-    questions = node.questions if node else []
+    skill = (await db.execute(select(Skill).where(Skill.id == session.skill_id))).scalar_one_or_none()
+    questions = await _generate_questions(skill.label) if skill else []
 
     score = 0
     for ans in body.answers:
@@ -73,7 +97,7 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
                 score += 1
 
     session.score = score
-    session.completed_at = datetime.now(timezone.utc)
+    session.completed_at = datetime.utcnow()
     await db.commit()
 
     return {

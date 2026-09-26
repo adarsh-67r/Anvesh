@@ -1,0 +1,17 @@
+flowchart LR
+    LOGIN["🔑 Login"] --> DASH["📊 Dashboard"]
+    DASH --> LEARN["📚 Learning<br/>Recommended Skills + Videos"]
+    DASH --> CARDS["🧠 Flashcards<br/>Create & Review (SM-2)"]
+    DASH --> CHAT["🤖 AI Chat<br/>Ask Doubts + Voice"]
+    DASH --> TODO["📋 Todos<br/>Smart Suggestions"]
+    DASH --> TIMER["⏱️ Pomodoro Timer"]
+    DASH --> GROUP["👥 Study Groups"]
+
+    LEARN -->|"Answer Questions"| REC["🎯 Mastery Updates<br/>+ New Recommendations"]
+    TIMER -->|"60 min studied"| GAME["🎮 Quiz Game<br/>Unlocked!"]
+    CARDS -->|"Due Cards"| REVIEW["📅 Spaced Review"]
+    GROUP -->|"Share Decks"| CARDS
+
+    style DASH fill:#3b82f6,color:#fff
+    style REC fill:#22c55e,color:#fff
+    style GAME fill:#f59e0b,color:#fff

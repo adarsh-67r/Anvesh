@@ -1,0 +1,62 @@
+flowchart TD
+    NUM["🔢 Number Systems<br/>Depth 0"]
+    FRAC["➗ Fractions & Decimals<br/>Depth 1"]
+    INT["± Integers & Operations<br/>Depth 1"]
+    GEO["📐 Basic Geometry<br/>Depth 1"]
+    EXP["🔋 Exponents & Powers<br/>Depth 2"]
+    RAT["⚖️ Ratios & Proportions<br/>Depth 2"]
+    ALG["🔤 Algebraic Expressions<br/>Depth 2"]
+    TRI["△ Triangles<br/>Depth 2"]
+    DATA["📊 Data Handling<br/>Depth 2"]
+    LEQ["📈 Linear Equations<br/>Depth 3"]
+    PCT["% Percentages<br/>Depth 3"]
+    AREA["📏 Area & Perimeter<br/>Depth 3"]
+    QUAD["◇ Quadrilaterals<br/>Depth 3"]
+    PROB["🎲 Probability<br/>Depth 3"]
+    LINEQ["≤ Linear Inequalities<br/>Depth 4"]
+    COORD["📍 Coordinate Geometry<br/>Depth 4"]
+    POLY["📐 Polynomials<br/>Depth 4"]
+    QEQN["x² Quadratic Equations<br/>Depth 5"]
+
+    NUM --> FRAC
+    NUM --> INT
+    NUM --> GEO
+    INT --> EXP
+    FRAC --> RAT
+    INT --> ALG
+    FRAC --> ALG
+    GEO --> TRI
+    FRAC --> DATA
+    ALG --> LEQ
+    RAT --> PCT
+    FRAC --> PCT
+    TRI --> AREA
+    ALG --> AREA
+    TRI --> QUAD
+    DATA --> PROB
+    FRAC --> PROB
+    LEQ --> LINEQ
+    LEQ --> COORD
+    GEO --> COORD
+    LEQ --> POLY
+    EXP --> POLY
+    POLY --> QEQN
+
+    style NUM fill:#22c55e,color:#fff
+    style FRAC fill:#22c55e,color:#fff
+    style INT fill:#22c55e,color:#fff
+    style GEO fill:#3b82f6,color:#fff
+    style ALG fill:#3b82f6,color:#fff
+    style EXP fill:#9ca3af,color:#fff
+    style RAT fill:#9ca3af,color:#fff
+    style TRI fill:#9ca3af,color:#fff
+    style DATA fill:#9ca3af,color:#fff
+    style LEQ fill:#9ca3af,color:#fff
+    style PCT fill:#9ca3af,color:#fff
+    style AREA fill:#9ca3af,color:#fff
+    style QUAD fill:#9ca3af,color:#fff
+    style PROB fill:#9ca3af,color:#fff
+    style LINEQ fill:#9ca3af,color:#fff
+    style COORD fill:#9ca3af,color:#fff
+    style POLY fill:#9ca3af,color:#fff
+    style QEQN fill:#9ca3af,color:#fff

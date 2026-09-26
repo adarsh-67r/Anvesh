@@ -1,0 +1,51 @@
+flowchart TB
+    subgraph Client["🖥️ Client (Browser / PWA)"]
+        FE["Next.js Frontend<br/>Dashboard • Learning • Flashcards<br/>Chat • Timer • Game • Groups"]
+    end
+
+    subgraph Vercel["☁️ Vercel"]
+        FE
+    end
+
+    subgraph Render["☁️ Render"]
+        API["FastAPI Backend"]
+        subgraph RecEngine["🧠 Recommendation Engine<br/>(Production Module)"]
+            KG["Knowledge Graph<br/>(DAG)"]
+            ORC["Orchestrator<br/>(Auto Phase Selection)"]
+            EMA["Phase 0: EMA<br/>Rule-Based Mastery"]
+            BKT["Phase 1: BKT<br/>Bayesian Knowledge Tracing"]
+            IRT["Phase 2: IRT<br/>Item Response Theory"]
+            FUTURE["Phase 3-4: DKT / Semi-MoE<br/>(Future)"]
+        end
+        AUTH["Auth (JWT)"]
+        CHAT["Chatbot"]
+        FLASH["Flashcards (SM-2)"]
+        TODOS["Smart Todos"]
+        GAME["Quiz Game"]
+        GROUPS["Study Groups"]
+    end
+
+    subgraph External["External Services"]
+        GEMINI["Google Gemini<br/>(Free Tier)"]
+        SUPA["Supabase<br/>PostgreSQL"]
+    end
+
+    Client -->|REST API + JWT| API
+    API --> RecEngine
+    API --> AUTH
+    API --> CHAT
+    API --> FLASH
+    API --> TODOS
+    API --> GAME
+    API --> GROUPS
+    ORC --> EMA
+    ORC --> BKT
+    ORC --> IRT
+    ORC -.-> FUTURE
+    KG --> ORC
+    CHAT -->|API Call| GEMINI
+    API -->|asyncpg| SUPA
+
+    style RecEngine fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style FUTURE fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 5 5
+    style Client fill:#f0fdf4,stroke:#22c55e

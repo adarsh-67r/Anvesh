@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Todo, User
+from app.models import Skill, Todo, User
 from app.recommendation.ema import get_all_mastered_ids
-from app.recommendation.knowledge_graph import get_graph
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
 
@@ -92,11 +91,11 @@ async def carry_forward(user: User = Depends(get_current_user), db: AsyncSession
 async def suggested_todos(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Suggest todos based on knowledge graph gaps."""
     mastered = await get_all_mastered_ids(db, str(user.id))
-    graph = get_graph()
-    frontier = graph.get_unmastered_frontier(mastered)
+    all_skills = (await db.execute(select(Skill))).scalars().all()
+    unmastered = [s for s in all_skills if s.id not in mastered]
     return [
-        {"title": f"Study: {node.label}", "skill_id": node.id, "depth": node.depth}
-        for node in frontier[:5]
+        {"title": f"Study: {s.label}", "skill_id": s.id, "depth": s.depth}
+        for s in unmastered[:5]
     ]
 
 

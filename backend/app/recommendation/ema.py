@@ -11,8 +11,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import LearningEvent, SkillMastery
-from app.recommendation.knowledge_graph import get_graph
-
 EMA_ALPHA = 0.3
 MASTERY_THRESHOLD = 0.75
 CONSECUTIVE_REQUIRED = 3
@@ -50,7 +48,7 @@ async def get_mastery(db: AsyncSession, user_id: str, skill_id: str) -> float:
             select(SkillMastery).where(SkillMastery.user_id == user_id, SkillMastery.skill_id == skill_id)
         )
     ).scalar_one_or_none()
-    return row.mastery_score if row else 0.5
+    return row.mastery_score if row else 0.0
 
 
 async def get_all_mastered_ids(db: AsyncSession, user_id: str) -> set[str]:
@@ -60,16 +58,6 @@ async def get_all_mastered_ids(db: AsyncSession, user_id: str) -> set[str]:
         )
     ).scalars().all()
     return set(rows)
-
-
-async def get_next_skills(db: AsyncSession, user_id: str, limit: int = 3) -> list[dict]:
-    mastered = await get_all_mastered_ids(db, user_id)
-    graph = get_graph()
-    frontier = graph.get_unmastered_frontier(mastered)
-    return [
-        {"skill_id": n.id, "label": n.label, "depth": n.depth, "subject": n.subject, "grade": n.grade}
-        for n in frontier[:limit]
-    ]
 
 
 async def get_dropout_risk(db: AsyncSession, user_id: str) -> float:

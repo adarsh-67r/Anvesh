@@ -1,21 +1,8 @@
-from contextlib import asynccontextmanager
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.recommendation.knowledge_graph import load_graph
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    load_graph(DATA_DIR / "knowledge_graph.json")
-    yield
-
-
-app = FastAPI(title="Anvesh", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Anvesh", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

@@ -42,7 +42,7 @@ def sm2_update(card: Flashcard, quality: int):
         card.repetitions = 0
         card.interval = 1
     card.easiness = max(1.3, card.easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-    card.next_review = datetime.now(timezone.utc) + timedelta(days=card.interval)
+    card.next_review = datetime.utcnow() + timedelta(days=card.interval)
 
 
 @router.get("")
@@ -56,7 +56,7 @@ async def list_cards(skill_id: str | None = None, user: User = Depends(get_curre
 
 @router.get("/due")
 async def due_cards(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     cards = (
         await db.execute(
             select(Flashcard)

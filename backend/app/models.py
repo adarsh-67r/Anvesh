@@ -46,6 +46,17 @@ class LearningEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
+class Skill(Base):
+    __tablename__ = "skills"
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    label: Mapped[str] = mapped_column(String(300))
+    subject: Mapped[str] = mapped_column(String(100), default="general")
+    depth: Mapped[int] = mapped_column(Integer, default=0)
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class SkillVideo(Base):
     __tablename__ = "skill_videos"
 

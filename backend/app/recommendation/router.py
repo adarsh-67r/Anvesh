@@ -1,15 +1,12 @@
-from uuid import UUID
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import SkillMastery, SkillVideo, User
+from app.models import Skill, SkillMastery, SkillVideo, User
 from app.recommendation import orchestrator
-from app.recommendation.knowledge_graph import get_graph
 
 router = APIRouter(prefix="/api/recommend", tags=["recommendation"])
 
@@ -62,28 +59,34 @@ async def skill_mastery(skill_id: str, user: User = Depends(get_current_user), d
 
 @router.get("/graph")
 async def full_graph(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    graph = get_graph()
+    all_skills = (await db.execute(select(Skill).order_by(Skill.created_at))).scalars().all()
     mastery_rows = (
         await db.execute(select(SkillMastery).where(SkillMastery.user_id == user.id))
     ).scalars().all()
     mastery_map = {r.skill_id: r for r in mastery_rows}
 
+    # Get video counts per skill
+    video_counts = dict(
+        (await db.execute(
+            select(SkillVideo.skill_id, sqlfunc.count(SkillVideo.id))
+            .group_by(SkillVideo.skill_id)
+        )).all()
+    )
+
     nodes = []
-    for node in graph.get_all_nodes():
-        m = mastery_map.get(node.id)
-        prereqs_met = all(
-            mastery_map.get(p) and mastery_map[p].is_mastered for p in node.prerequisites
-        ) if node.prerequisites else True
+    for skill in all_skills:
+        m = mastery_map.get(skill.id)
         nodes.append({
-            "id": node.id,
-            "label": node.label,
-            "depth": node.depth,
-            "subject": node.subject,
-            "grade": node.grade,
-            "prerequisites": node.prerequisites,
+            "id": skill.id,
+            "label": skill.label,
+            "depth": skill.depth,
+            "subject": skill.subject,
+            "grade": 0,
+            "prerequisites": [],
             "mastery_score": round(m.mastery_score, 4) if m else 0.0,
             "is_mastered": m.is_mastered if m else False,
-            "status": "mastered" if (m and m.is_mastered) else ("available" if prereqs_met else "locked"),
+            "status": "mastered" if (m and m.is_mastered) else "available",
+            "video_count": video_counts.get(skill.id, 0),
         })
     return nodes
 
@@ -91,7 +94,7 @@ async def full_graph(user: User = Depends(get_current_user), db: AsyncSession = 
 @router.get("/dropout-risk")
 async def dropout_risk(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     risk = await orchestrator.get_dropout_risk(db, str(user.id))
-    return {"dropout_risk": round(risk, 4)}
+    return {"risk_score": round(risk, 4), "risk_level": "Low" if risk < 0.5 else "High"}
 
 
 @router.get("/videos/{skill_id}")

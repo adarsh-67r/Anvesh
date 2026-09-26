@@ -5,9 +5,7 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.models import User
-from passlib.context import CryptContext
-
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.auth import hash_password
 
 DEMO_USERS = [
     {"name": "Demo Student", "email": "demo@anvesh.in", "password": "demo1234"},
@@ -21,7 +19,7 @@ async def seed():
         for u in DEMO_USERS:
             exists = (await db.execute(select(User).where(User.email == u["email"]))).scalar_one_or_none()
             if not exists:
-                db.add(User(name=u["name"], email=u["email"], password_hash=pwd.hash(u["password"])))
+                db.add(User(name=u["name"], email=u["email"], password_hash=hash_password(u["password"])))
                 print(f"Created: {u['email']}")
             else:
                 print(f"Exists: {u['email']}")

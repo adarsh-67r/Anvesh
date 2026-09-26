@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,14 @@ from app.database import get_db
 from app.models import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 class LoginRequest(BaseModel):
@@ -42,7 +49,7 @@ def verify_token(token: str) -> UUID:
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
-    if not user or not pwd.verify(body.password, user.password_hash):
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"token": create_token(user.id), "user": {"id": str(user.id), "name": user.name, "email": user.email}}
 
@@ -52,7 +59,7 @@ async def register(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     exists = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     if exists:
         raise HTTPException(status_code=409, detail="Email taken")
-    user = User(name=body.email.split("@")[0], email=body.email, password_hash=pwd.hash(body.password))
+    user = User(name=body.email.split("@")[0], email=body.email, password_hash=hash_password(body.password))
     db.add(user)
     await db.commit()
     await db.refresh(user)

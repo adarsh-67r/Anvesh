@@ -1,0 +1,36 @@
+flowchart LR
+    subgraph Input["Student Interaction"]
+        ANS["📝 Answer Submitted"]
+    end
+
+    subgraph Pipeline["Processing Pipeline"]
+        LOG["Event Logger<br/>(Section 10 Schema)"]
+        UPD["EMA Mastery Update<br/>score = 0.3×correct + 0.7×prev"]
+        ORC["Orchestrator"]
+    end
+
+    subgraph Phases["Phase Selection"]
+        direction TB
+        CHECK{"Data Volume<br/>Check"}
+        P0["Phase 0: EMA<br/>0 data needed"]
+        P1["Phase 1: BKT<br/>200+ attempts/skill"]
+        P2["Phase 2: IRT<br/>200+ responses/item"]
+    end
+
+    subgraph Output["Recommendation"]
+        REC["Next Skills<br/>(Knowledge Graph Frontier)"]
+        RISK["Dropout Risk<br/>Score"]
+    end
+
+    ANS --> LOG --> UPD --> ORC --> CHECK
+    CHECK -->|"< 200 attempts"| P0
+    CHECK -->|"200+ attempts"| P1
+    CHECK -->|"200+ responses × 10+ users"| P2
+    P0 --> REC
+    P1 --> REC
+    P2 --> REC
+    ORC --> RISK
+
+    style Pipeline fill:#fef3c7,stroke:#f59e0b
+    style Phases fill:#dbeafe,stroke:#3b82f6
+    style Output fill:#dcfce7,stroke:#22c55e
