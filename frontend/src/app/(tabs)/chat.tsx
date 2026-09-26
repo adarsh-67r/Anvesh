@@ -48,6 +48,8 @@ export default function ChatScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recState = useAudioRecorderState(recorder, 250);
   const recording = recState.isRecording;
+  const autoStopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   const startRecording = async () => {
     const { granted } = await requestRecordingPermissionsAsync();
@@ -58,9 +60,14 @@ export default function ChatScreen() {
     await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
     await recorder.prepareToRecordAsync();
     recorder.record();
+    // Keep recordings short so uploads stay under the 5 MB limit.
+    autoStopRef.current = setTimeout(() => stopRecordingRef.current(), 60000);
   };
 
   const stopRecording = async () => {
+    if (autoStopRef.current) clearTimeout(autoStopRef.current);
+    autoStopRef.current = null;
+    if (!recorder.isRecording) return;
     await recorder.stop();
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     const uri = recorder.uri;
@@ -84,11 +91,7 @@ export default function ChatScreen() {
     }
   };
 
-  // Keep recordings short so uploads stay under the 5 MB limit.
-  useEffect(() => {
-    if (recording && recState.durationMillis >= 60000) stopRecording();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, recState.durationMillis]);
+
   const scrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
@@ -96,6 +99,9 @@ export default function ChatScreen() {
       api.get<Message[]>("/api/chat/history?limit=50").then(setMessages).catch(() => {});
     }, [])
   );
+
+  useEffect(() => { stopRecordingRef.current = stopRecording; });
+  useEffect(() => () => { if (autoStopRef.current) clearTimeout(autoStopRef.current); }, []);
 
   const attach = async () => {
     try {
