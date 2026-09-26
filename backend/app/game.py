@@ -38,7 +38,7 @@ async def _generate_questions(skill_label: str) -> list[dict]:
             f'"text" (question), "options" (4 strings), "answer" (the correct option string). '
             f"No markdown, no explanation, just the JSON array."
         )
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        response = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
