@@ -117,6 +117,21 @@ flowchart TB
     style RecEngine stroke:#3b82f6,stroke-width:2px
     style FUTURE stroke:#9ca3af,stroke-dasharray: 5 5
     style Client stroke:#22c55e
+
+    classDef app fill:#16a34a,stroke:#15803d,color:#fff
+    classDef api fill:#0f766e,stroke:#115e59,color:#fff
+    classDef svc fill:#0891b2,stroke:#0e7490,color:#fff
+    classDef rec fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef orch fill:#d97706,stroke:#b45309,color:#fff
+    classDef ext fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef future fill:#6b7280,stroke:#9ca3af,stroke-dasharray: 5 5,color:#fff
+    class FE,CACHE app
+    class API api
+    class AUTH,CHAT,FLASH,TODOS,GAME,GROUPS,EVENTS svc
+    class KG,EMA,BKT,IRT rec
+    class ORC orch
+    class GEMINI,SUPA ext
+    class FUTURE future
 ```
 
 ### Recommendation Engine Pipeline
@@ -158,6 +173,20 @@ flowchart LR
     style Pipeline stroke:#f59e0b
     style Phases stroke:#3b82f6
     style Output stroke:#22c55e
+
+    classDef app fill:#16a34a,stroke:#15803d,color:#fff
+    classDef api fill:#0f766e,stroke:#115e59,color:#fff
+    classDef svc fill:#0891b2,stroke:#0e7490,color:#fff
+    classDef rec fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef orch fill:#d97706,stroke:#b45309,color:#fff
+    classDef ext fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef future fill:#6b7280,stroke:#9ca3af,stroke-dasharray: 5 5,color:#fff
+    classDef out fill:#16a34a,stroke:#15803d,color:#fff
+    class ANS app
+    class LOG,UPD svc
+    class ORC,CHECK orch
+    class P0,P1,P2 rec
+    class REC,RISK out
 ```
 
 ---
