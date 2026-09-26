@@ -4,12 +4,12 @@
 **Smart India Hackathon 2026 · Problem Statement 26207 · Smart Education**
 
 [![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-009688.svg?logo=fastapi&logoColor=white)](backend)
-[![Frontend: Next.js](https://img.shields.io/badge/Frontend-Next.js%20%7C%20React-000000.svg?logo=nextdotjs&logoColor=white)](frontend)
+[![App: Expo React Native](https://img.shields.io/badge/App-Expo%20%7C%20React%20Native-000020.svg?logo=expo&logoColor=white)](frontend)
 [![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2016%20(Supabase)-4169E1.svg?logo=postgresql&logoColor=white)](backend/app/models.py)
 [![AI: Google Gemini](https://img.shields.io/badge/AI%20Chatbot-Google%20Gemini-4285F4.svg?logo=google&logoColor=white)](backend/app/chatbot.py)
 [![Recommendation: EMA + BKT + IRT](https://img.shields.io/badge/Recommendation-EMA%20%2B%20BKT%20%2B%20IRT-blueviolet.svg)](backend/app/recommendation)
 [![Spaced Repetition: SM-2](https://img.shields.io/badge/Flashcards-SM--2%20Algorithm-orange.svg)](backend/app/flashcards.py)
-[![PWA Ready](https://img.shields.io/badge/PWA-Offline%20Ready-success.svg)](#pwa--offline-support)
+[![Offline Flashcards](https://img.shields.io/badge/Flashcards-Offline%20Review-success.svg)](frontend/src/lib/offline.ts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
@@ -40,7 +40,8 @@ A unified adaptive learning platform where every feature is connected to a singl
 
 2. **AI Tutor Chatbot:**
    - Google Gemini-powered, context-aware (knows the student's current topic and mastery level).
-   - Persistent chat history in database. Voice output via browser SpeechSynthesis API.
+   - Persistent chat history in database. Ask by voice (speech is transcribed by Gemini) and hear answers read aloud.
+   - Attach a photo or PDF of a problem and the tutor reads it.
 
 3. **Spaced Repetition Flashcards:**
    - SM-2 algorithm (used by 10M+ Anki users) schedules reviews at mathematically optimal intervals.
@@ -55,10 +56,10 @@ A unified adaptive learning platform where every feature is connected to a singl
    - Questions pulled from the knowledge graph. Scores recorded per skill.
 
 6. **Study Groups & Collaboration:**
-   - Create groups with invite codes. Share flashcard decks. View peers' mastery progress.
+   - Create groups with invite codes. Group chat with file attachments, shared files and shared flashcard decks.
 
-7. **PWA & Offline Support:**
-   - Works on low-bandwidth connections. Cached flashcard review offline. Reaches rural and underserved students.
+7. **Offline Support:**
+   - Flashcards are cached on the phone. Reviews made offline are saved and synced when the connection returns. Reaches rural and underserved students.
 
 ---
 
@@ -66,12 +67,8 @@ A unified adaptive learning platform where every feature is connected to a singl
 
 ```mermaid
 flowchart TB
-    subgraph Client["Client (Browser / PWA)"]
-        FE["Next.js Frontend<br/>Dashboard · Learning · Flashcards<br/>Chat · Timer · Game · Groups"]
-    end
-
-    subgraph Vercel["Vercel"]
-        FE
+    subgraph Client["Android App (Expo / React Native)"]
+        FE["Dashboard · Learning · Flashcards<br/>AI Tutor · Timer · Game · Groups"]
     end
 
     subgraph Render["Render"]
@@ -191,8 +188,8 @@ SM-2 spaced repetition (Wozniak 1994) is integrated directly into the learning f
 | **Retention System** | **SM-2 spaced repetition** linked to skills | Separate flashcard apps or no spaced repetition |
 | **Dropout Detection** | **Risk scoring** from learning event patterns | No early warning system |
 | **AI Tutoring** | **Context-aware chatbot** (Gemini, knows current skill) | Generic chatbot or no AI support |
-| **Collaboration** | **Study groups** with shared decks and mastery visibility | No peer learning features |
-| **Offline Support** | **PWA** with cached flashcard review | Requires constant internet |
+| **Collaboration** | **Study groups** with chat, shared files and shared decks | No peer learning features |
+| **Offline Support** | **Offline flashcard review** that syncs when back online | Requires constant internet |
 | **Data Pipeline** | **Event logging from Day 1** for ML readiness | Analytics added as an afterthought |
 
 ---
@@ -202,13 +199,13 @@ SM-2 spaced repetition (Wozniak 1994) is integrated directly into the learning f
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
 | **Backend API** | FastAPI, Python 3.13 | Async REST API, Pydantic validation |
-| **Database** | PostgreSQL 16 (Supabase) | 11-table schema, event logging pipeline |
+| **Database** | PostgreSQL 16 (Supabase) | 14-table schema, event logging pipeline |
 | **ORM & Migrations** | SQLAlchemy (async) + Alembic | Type-safe models, version-controlled schema |
 | **Recommendation** | NumPy, SciPy | EMA, BKT (HMM), IRT (2PL MLE) |
 | **AI Chatbot** | Google Gemini API | Context-aware tutoring, free tier |
 | **Auth** | python-jose, passlib (bcrypt) | JWT token authentication |
-| **Frontend** | Next.js, React, Tailwind CSS | Responsive dashboard, PWA |
-| **Deployment** | Vercel (web), Render (API), Supabase (DB) | Zero-cost free tier deployment |
+| **Mobile App** | Expo SDK 57, React Native, Expo Router | Android app (APK), expo-audio voice input |
+| **Deployment** | Render (API), Supabase (DB), EAS / GitHub Actions (APK) | Zero-cost free tier deployment |
 
 ---
 
@@ -290,7 +287,7 @@ IRT (most data) → BKT → EMA (fallback)
 
 - [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or Python 3.13+
 - [Docker](https://www.docker.com/) (for local PostgreSQL) or a [Supabase](https://supabase.com/) project
-- [Node.js 20+](https://nodejs.org/) (for frontend)
+- [Node.js 22.13+](https://nodejs.org/) (for the Expo app)
 
 ### 2. Backend Setup
 
@@ -364,7 +361,7 @@ Anvesh/
 │   │   ├── videos.py                     # User-contributed YouTube URLs per skill
 │   │   ├── study_groups.py               # Groups, invite codes, shared decks
 │   │   ├── game.py                       # Quiz game (unlocks after study time)
-│   │   ├── models.py                     # 11 SQLAlchemy models
+│   │   ├── models.py                     # 14 SQLAlchemy models
 │   │   ├── main.py                       # FastAPI application entrypoint
 │   │   ├── config.py                     # Pydantic settings
 │   │   ├── database.py                   # Async SQLAlchemy engine
@@ -375,7 +372,7 @@ Anvesh/
 │   ├── seed.py                           # Demo account seeder
 │   ├── requirements.txt
 │   └── Dockerfile
-├── frontend/                             # Next.js (teammate-managed)
+├── frontend/                             # Expo / React Native Android app
 ├── docs/
 │   ├── ppt-script.md                     # SIH 2026 presentation content
 │   ├── frontend-guide.md                 # Frontend implementation guide with all API specs
