@@ -116,3 +116,9 @@ export async function openAttachment(id: string) {
   const { url } = await api.post<{ url: string }>(`/api/attachments/${id}/link`);
   await Linking.openURL(url);
 }
+
+export type StudyStatus = { study_minutes: number; required_minutes: number; unlocked: boolean };
+
+export function logEvent(event_type: string, skill_id = "general", context?: Record<string, unknown>) {
+  api.post("/api/recommend/events", { event_type, skill_id, context }).catch(() => {});
+}

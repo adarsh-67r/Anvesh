@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { router } from "expo-router";
 import { api, setToken, clearToken, getToken, setUnauthorizedHandler } from "./api";
+import { clearOfflineCache } from "./offline";
 
 type User = { id: string; name: string; email: string };
 
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await clearToken();
+    await clearOfflineCache();
     setUser(null);
   };
 

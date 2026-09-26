@@ -13,18 +13,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
+import { Card, loadDueCards, reviewCard } from "../../lib/offline";
 import { colors, typography, spacing, radii } from "../../lib/theme";
-
-type Card = {
-  id: string;
-  front: string;
-  back: string;
-  skill_id: string | null;
-  easiness: number;
-  interval: number;
-  repetitions: number;
-  next_review: string | null;
-};
 
 const QUALITY_LABELS = ["Blackout", "Forgot", "Familiar", "Hard", "Good", "Perfect"];
 const QUALITY_COLORS = ["#BA1A1A", "#C2410C", "#EA580C", "#D97706", "#0EA5E9", "#10B981"];
@@ -39,15 +29,16 @@ export default function CardsScreen() {
   const [back, setBack] = useState("");
 
   const [totalCount, setTotalCount] = useState(0);
+  const [offline, setOffline] = useState(false);
+  const [pending, setPending] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const [cards, all] = await Promise.all([
-        api.get<Card[]>("/api/flashcards/due"),
-        api.get<Card[]>("/api/flashcards"),
-      ]);
-      setDueCards(cards);
-      setTotalCount(all.length);
+      const res = await loadDueCards();
+      setDueCards(res.due);
+      setTotalCount(res.total);
+      setOffline(res.offline);
+      setPending(res.pending);
       setCurrentIdx(0);
       setFlipped(false);
     } catch {}
@@ -60,7 +51,11 @@ export default function CardsScreen() {
   const review = async (quality: number) => {
     if (!current) return;
     try {
-      await api.post(`/api/flashcards/${current.id}/review`, { quality });
+      const queued = await reviewCard(current.id, quality);
+      if (queued) {
+        setOffline(true);
+        setPending((n) => n + 1);
+      }
       if (currentIdx < dueCards.length - 1) {
         setCurrentIdx((i) => i + 1);
         setFlipped(false);
@@ -114,6 +109,16 @@ export default function CardsScreen() {
           <TouchableOpacity style={styles.createBtn} onPress={createCard}>
             <Text style={styles.createBtnText}>Create Card</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {(offline || pending > 0) && (
+        <View style={styles.offlineBar} accessibilityLiveRegion="polite">
+          <MaterialIcons name={offline ? "cloud-off" : "cloud-upload"} size={18} color={colors.textSecondary} />
+          <Text style={styles.offlineText}>
+            {offline ? "Offline: reviewing saved cards." : "Back online."}
+            {pending > 0 ? ` ${pending} review${pending === 1 ? "" : "s"} will sync when you're connected.` : ""}
+          </Text>
         </View>
       )}
 
@@ -251,4 +256,15 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingTop: 60, gap: spacing.sm },
   emptyTitle: { ...typography.headlineSm, color: colors.text },
   emptyText: { ...typography.bodyMd, color: colors.textSecondary },
+  offlineBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.lg,
+    backgroundColor: colors.locked,
+  },
+  offlineText: { ...typography.bodyMd, color: colors.textSecondary, flex: 1 },
 });
