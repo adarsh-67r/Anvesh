@@ -29,6 +29,13 @@
       "expo-secure-store",
       "expo-font",
       "expo-splash-screen"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6e2a5162-c06b-4e39-b7ed-410b3751e497"
+      }
+    },
+    "owner": "adarsh67r"
   }
 }
