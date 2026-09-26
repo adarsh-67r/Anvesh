@@ -11,6 +11,7 @@ import {
   TextInput,
   useWindowDimensions,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -24,6 +25,7 @@ import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type MasteryInfo = { skill_id: string; mastery_score: number; phase: string };
 type Video = { id: string; title: string; url: string; display_order: number };
+type GraphNode = { id: string; label: string; prerequisites: string[]; status: "mastered" | "available" | "locked" };
 
 function extractYouTubeId(url: string): string | null {
   const m = url.match(/(?:youtu\.be\/|[?&]v=)([a-zA-Z0-9_-]{11})/);
@@ -34,6 +36,9 @@ export default function SkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [mastery, setMastery] = useState<MasteryInfo | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [graph, setGraph] = useState<GraphNode[]>([]);
+  const [editPrereqs, setEditPrereqs] = useState(false);
+  const [draftPrereqs, setDraftPrereqs] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [answering, setAnswering] = useState(false);
   const [feedback, setFeedback] = useState<{ correct: boolean; prev: number } | null>(null);
@@ -46,12 +51,14 @@ export default function SkillScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [m, v] = await Promise.all([
+      const [m, v, g] = await Promise.all([
         api.get<MasteryInfo>(`/api/recommend/mastery/${id}`),
         api.get<Video[]>(`/api/recommend/videos/${id}`),
+        api.get<GraphNode[]>("/api/recommend/graph"),
       ]);
       setMastery(m);
       setVideos(v);
+      setGraph(g);
     } catch {}
   }, [id]);
 
@@ -84,6 +91,25 @@ export default function SkillScreen() {
   };
 
   const pct = mastery ? Math.round(mastery.mastery_score * 100) : 0;
+  const node = graph.find((n) => n.id === id);
+  const labelOf = (sid: string) => graph.find((n) => n.id === sid)?.label ?? sid;
+  const unmetPrereqs = (node?.prerequisites ?? []).filter((p) => graph.find((n) => n.id === p)?.status !== "mastered");
+
+  const startEditPrereqs = () => {
+    setDraftPrereqs(node?.prerequisites ?? []);
+    setEditPrereqs(true);
+  };
+
+  const savePrereqs = async () => {
+    try {
+      await api.put(`/api/recommend/skills/${id}/prerequisites`, { prerequisites: draftPrereqs });
+      setEditPrereqs(false);
+      await load();
+    } catch (e: any) {
+      const msg = (() => { try { return JSON.parse(e.message).detail; } catch { return e.message; } })();
+      Alert.alert("Could not save", msg || "Please try again.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -91,7 +117,7 @@ export default function SkillScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.topTitle} numberOfLines={1}>{id}</Text>
+        <Text style={styles.topTitle} numberOfLines={1}>{node?.label ?? id}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -176,6 +202,66 @@ export default function SkillScreen() {
             <Text style={styles.quizBtnText}>Take Quiz Challenge</Text>
           </TouchableOpacity>
         </Link>
+
+        {/* Prerequisites */}
+        <View style={styles.videoHeader}>
+          <Text style={styles.sectionTitle}>Prerequisites</Text>
+          {!editPrereqs && graph.length > 1 && (
+            <TouchableOpacity onPress={startEditPrereqs} hitSlop={8} accessibilityLabel="Edit prerequisites">
+              <MaterialIcons name="edit" size={22} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {unmetPrereqs.length > 0 && !editPrereqs && (
+          <View style={styles.lockBanner}>
+            <MaterialIcons name="lock" size={18} color={colors.error} />
+            <Text style={styles.lockText}>Master {unmetPrereqs.map(labelOf).join(", ")} first to unlock recommendations for this skill.</Text>
+          </View>
+        )}
+        {!editPrereqs && (
+          <View style={styles.chipRow}>
+            {(node?.prerequisites ?? []).length === 0 && <Text style={styles.emptyPrereq}>None. This skill is available right away.</Text>}
+            {(node?.prerequisites ?? []).map((p) => {
+              const done = graph.find((n) => n.id === p)?.status === "mastered";
+              return (
+                <TouchableOpacity key={p} style={styles.chip} onPress={() => router.push(`/skill/${p}`)}>
+                  <MaterialIcons name={done ? "check-circle" : "radio-button-unchecked"} size={16} color={done ? colors.tertiary : colors.textMuted} />
+                  <Text style={styles.chipText} numberOfLines={1}>{labelOf(p)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+        {editPrereqs && (
+          <View style={styles.prereqEditor}>
+            <Text style={styles.emptyPrereq}>Tap the skills a student must master before this one.</Text>
+            <View style={styles.chipRow}>
+              {graph.filter((n) => n.id !== id).map((n) => {
+                const on = draftPrereqs.includes(n.id);
+                return (
+                  <TouchableOpacity
+                    key={n.id}
+                    style={[styles.chip, on && styles.chipOn]}
+                    onPress={() => setDraftPrereqs((d) => (on ? d.filter((x) => x !== n.id) : [...d, n.id]))}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <MaterialIcons name={on ? "check-box" : "check-box-outline-blank"} size={16} color={on ? "#FFFFFF" : colors.textMuted} />
+                    <Text style={[styles.chipText, on && { color: "#FFFFFF" }]} numberOfLines={1}>{n.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.practiceRow}>
+              <TouchableOpacity style={[styles.practiceBtn, { backgroundColor: colors.locked }]} onPress={() => setEditPrereqs(false)}>
+                <Text style={[styles.practiceBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.practiceBtn, { backgroundColor: colors.primary }]} onPress={savePrereqs}>
+                <Text style={[styles.practiceBtnText, { color: "#FFFFFF" }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Videos */}
         <View style={styles.videoHeader}>
@@ -313,6 +399,33 @@ const styles = StyleSheet.create({
   milestoneText: { ...typography.labelSm, color: colors.textMuted },
   phaseText: { ...typography.labelMd, color: colors.textSecondary, marginTop: spacing.sm },
   sectionTitle: { ...typography.headlineSm, color: colors.text, marginBottom: spacing.sm },
+  lockBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.errorLight,
+    borderRadius: radii.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  lockText: { ...typography.bodyMd, color: colors.error, flex: 1 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceWhite,
+    borderRadius: radii.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    maxWidth: "100%",
+  },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { ...typography.labelMd, color: colors.text, flexShrink: 1 },
+  emptyPrereq: { ...typography.bodyMd, color: colors.textMuted, marginBottom: spacing.sm },
+  prereqEditor: { marginBottom: spacing.md },
   practiceRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   practiceBtn: {
     flex: 1,
