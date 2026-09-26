@@ -1,18 +1,18 @@
-%%{init: {'themeVariables': {'fontSize': '22px'}, 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 50}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '22px', 'lineColor': '#64748B', 'edgeLabelBackground': '#FFFFFF', 'textColor': '#334155'}, 'flowchart': {'nodeSpacing': 70, 'rankSpacing': 60, 'curve': 'basis'}}}%%
 flowchart TB
-    ANS["📝 Student<br/>answers"] --> ORC{"Enough<br/>data?"}
-    ORC -->|day 1| EMA["EMA"]
-    ORC -->|200+ answers| BKT["BKT"]
-    ORC -->|10+ students| IRT["IRT"]
-    EMA --> NEXT["🎯 Next skill<br/>prereqs met"]
+    ANS("📝 Student<br/>answers") --> ORC{"Enough<br/>data?"}
+    ORC -->|day 1| EMA("EMA")
+    ORC -->|200+ answers| BKT("BKT")
+    ORC -->|10+ students| IRT("IRT")
+    EMA --> NEXT("🎯 Next skill<br/>prereqs met")
     BKT --> NEXT
     IRT --> NEXT
 
-    classDef input fill:#16a34a,stroke:#15803d,color:#fff
-    classDef orch fill:#d97706,stroke:#b45309,color:#fff
-    classDef phase fill:#2563eb,stroke:#1d4ed8,color:#fff
-    classDef out fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef input fill:#ECFDF5,stroke:#059669,stroke-width:2px,color:#064E3B
+    classDef orch fill:#FFFBEB,stroke:#D97706,stroke-width:2px,color:#78350F
+    classDef phase fill:#EEF2FF,stroke:#6366F1,stroke-width:2px,color:#1E1B4B
+    classDef hero fill:#4F46E5,stroke:#3730A3,stroke-width:2px,color:#FFFFFF
     class ANS input
     class ORC orch
     class EMA,BKT,IRT phase
-    class NEXT out
+    class NEXT hero
