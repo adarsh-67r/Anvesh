@@ -10,6 +10,17 @@ flowchart LR
     M --> REC["🎯 Next skills<br/>(prerequisites met)"]
     M --> RISK["⚠️ Dropout risk"]
 
-    style ORC fill:#fef3c7,stroke:#f59e0b,color:#111827
-    style REC fill:#dcfce7,stroke:#22c55e,color:#111827
-    style M fill:#dbeafe,stroke:#3b82f6,color:#111827
+    classDef input fill:#16a34a,stroke:#15803d,color:#fff
+    classDef log fill:#0891b2,stroke:#0e7490,color:#fff
+    classDef orch fill:#d97706,stroke:#b45309,color:#fff
+    classDef phase fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef score fill:#7c3aed,stroke:#6d28d9,color:#fff
+    classDef out fill:#16a34a,stroke:#15803d,color:#fff
+    classDef risk fill:#dc2626,stroke:#b91c1c,color:#fff
+    class ANS input
+    class LOG log
+    class ORC orch
+    class P0,P1,P2 phase
+    class M score
+    class REC out
+    class RISK risk
