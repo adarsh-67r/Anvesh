@@ -54,6 +54,7 @@ class Skill(Base):
     subject: Mapped[str] = mapped_column(String(100), default="general")
     depth: Mapped[int] = mapped_column(Integer, default=0)
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    prerequisites: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -133,6 +134,7 @@ class GameSession(Base):
     skill_id: Mapped[str] = mapped_column(String(100))
     score: Mapped[int] = mapped_column(Integer, default=0)
     total_questions: Mapped[int] = mapped_column(Integer)
+    questions: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

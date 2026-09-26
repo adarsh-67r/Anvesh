@@ -1,25 +1,30 @@
 """Phase 1 — Bayesian Knowledge Tracing (BKT).
 
-Hidden Markov Model with 4 parameters per skill:
-  P(L0)    — prior probability of knowing the skill
-  P(T)     — probability of learning on each attempt (transition)
-  P(G)     — probability of guessing correctly without knowing
-  P(S)     — probability of slipping (incorrect despite knowing)
+Two-state hidden Markov model per skill (unknown -> known, no forgetting):
+  P(L0) — prior probability of knowing the skill
+  P(T)  — probability of learning on each attempt (transition)
+  P(G)  — probability of answering correctly without knowing
+  P(S)  — probability of answering wrong despite knowing
 
-Uses forward algorithm to update P(mastered) after each response.
-Default priors from literature; fitted per-skill via EM when data sufficient.
+Parameters are fitted per skill with Baum-Welch (EM using forward-backward).
+Per-student mastery is the forward-filtered P(known) after their responses.
 Activates when a skill has >= MIN_ATTEMPTS responses.
 """
 
+import time
 from dataclasses import dataclass
 
 import numpy as np
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import LearningEvent, SkillMastery
+from app.models import LearningEvent
 
 MIN_ATTEMPTS = 200
+MASTERY_THRESHOLD = 0.95
+CACHE_TTL_SECONDS = 3600
+
+_EPS = 1e-9
 
 
 @dataclass
@@ -32,89 +37,96 @@ class BKTParams:
 
 DEFAULT_PARAMS = BKTParams()
 
+# ponytail: in-process cache refreshed hourly; move fitting to a scheduled job when running multiple workers
+_param_cache: dict[str, tuple[float, BKTParams]] = {}
+
 
 def bkt_forward(responses: list[bool], params: BKTParams) -> float:
-    """Run BKT forward algorithm, return final P(learned)."""
+    """Return P(known) after observing the responses, ready for the next attempt."""
     p_l = params.p_l0
-
     for correct in responses:
         if correct:
-            p_correct_given_l = 1.0 - params.p_slip
-            p_correct_given_not_l = params.p_guess
+            num = p_l * (1 - params.p_slip)
+            den = num + (1 - p_l) * params.p_guess
         else:
-            p_correct_given_l = params.p_slip
-            p_correct_given_not_l = 1.0 - params.p_guess
-
-        p_obs = p_l * p_correct_given_l + (1 - p_l) * p_correct_given_not_l
-        if p_obs < 1e-10:
-            p_obs = 1e-10
-
-        p_l_given_obs = (p_l * p_correct_given_l) / p_obs
-        p_l = p_l_given_obs + (1 - p_l_given_obs) * params.p_transit
-
+            num = p_l * params.p_slip
+            den = num + (1 - p_l) * (1 - params.p_guess)
+        posterior = num / max(den, _EPS)
+        p_l = posterior + (1 - posterior) * params.p_transit
     return float(p_l)
 
 
-def fit_bkt_params(sequences: list[list[bool]], max_iter: int = 50) -> BKTParams:
-    """Fit BKT parameters via EM algorithm on multiple student response sequences."""
-    p_l0 = 0.1
-    p_t = 0.1
-    p_g = 0.2
-    p_s = 0.1
+def _emissions(obs: np.ndarray, g: float, s: float) -> np.ndarray:
+    """Emission probabilities, shape (n, 2): column 0 = unknown, column 1 = known."""
+    p_unknown = np.where(obs, g, 1 - g)
+    p_known = np.where(obs, 1 - s, s)
+    return np.stack([p_unknown, p_known], axis=1)
+
+
+def fit_bkt_params(sequences: list[list[bool]], max_iter: int = 100, tol: float = 1e-5) -> BKTParams:
+    """Fit BKT parameters with Baum-Welch over many student response sequences."""
+    seqs = [np.asarray(s, dtype=bool) for s in sequences if s]
+    if not seqs:
+        return DEFAULT_PARAMS
+
+    l0, t, g, s = DEFAULT_PARAMS.p_l0, DEFAULT_PARAMS.p_transit, DEFAULT_PARAMS.p_guess, DEFAULT_PARAMS.p_slip
+    prev_ll = -np.inf
 
     for _ in range(max_iter):
-        sum_l0, sum_t, sum_g, sum_s = 0.0, 0.0, 0.0, 0.0
-        count_l0, count_t, count_g, count_s = 0, 0, 0, 0
+        trans = np.array([[1 - t, t], [0.0, 1.0]])
+        sum_gamma0_first = 0.0
+        xi_learn = 0.0
+        gamma_unknown_from = 0.0
+        guess_num = guess_den = slip_num = slip_den = 0.0
+        total_ll = 0.0
 
-        for seq in sequences:
-            if not seq:
-                continue
+        for obs in seqs:
+            n = len(obs)
+            emit = _emissions(obs, g, s)
 
-            p_l = p_l0
-            for correct in seq:
-                if correct:
-                    p_correct = p_l * (1 - p_s) + (1 - p_l) * p_g
-                    if p_correct < 1e-10:
-                        p_correct = 1e-10
-                    p_l_post = (p_l * (1 - p_s)) / p_correct
-                else:
-                    p_incorrect = p_l * p_s + (1 - p_l) * (1 - p_g)
-                    if p_incorrect < 1e-10:
-                        p_incorrect = 1e-10
-                    p_l_post = (p_l * p_s) / p_incorrect
+            alpha = np.zeros((n, 2))
+            scale = np.zeros(n)
+            alpha[0] = np.array([1 - l0, l0]) * emit[0]
+            scale[0] = alpha[0].sum() + _EPS
+            alpha[0] /= scale[0]
+            for k in range(1, n):
+                alpha[k] = (alpha[k - 1] @ trans) * emit[k]
+                scale[k] = alpha[k].sum() + _EPS
+                alpha[k] /= scale[k]
 
-                sum_g += (1 - p_l_post) * float(correct)
-                sum_s += p_l_post * float(not correct)
-                count_g += (1 - p_l_post)
-                count_s += p_l_post
+            beta = np.ones((n, 2))
+            for k in range(n - 2, -1, -1):
+                beta[k] = trans @ (emit[k + 1] * beta[k + 1]) / scale[k + 1]
 
-                p_l_pre_transit = p_l_post
-                p_l = p_l_post + (1 - p_l_post) * p_t
+            gamma = alpha * beta
+            gamma /= gamma.sum(axis=1, keepdims=True) + _EPS
+            total_ll += np.log(scale).sum()
 
-                sum_t += (1 - p_l_pre_transit) * p_t
-                count_t += (1 - p_l_pre_transit)
+            sum_gamma0_first += gamma[0, 1]
+            for k in range(n - 1):
+                xi = alpha[k][:, None] * trans * (emit[k + 1] * beta[k + 1])[None, :] / scale[k + 1]
+                xi_learn += xi[0, 1]
+                gamma_unknown_from += gamma[k, 0]
 
-            sum_l0 += p_l0
-            count_l0 += 1
+            guess_num += (gamma[:, 0] * obs).sum()
+            guess_den += gamma[:, 0].sum()
+            slip_num += (gamma[:, 1] * ~obs).sum()
+            slip_den += gamma[:, 1].sum()
 
-        if count_g > 0:
-            p_g = np.clip(sum_g / count_g, 0.01, 0.49)
-        if count_s > 0:
-            p_s = np.clip(sum_s / count_s, 0.01, 0.49)
-        if count_t > 0:
-            p_t = np.clip(sum_t / count_t, 0.01, 0.99)
+        l0 = float(np.clip(sum_gamma0_first / len(seqs), 0.001, 0.999))
+        if gamma_unknown_from > _EPS:
+            t = float(np.clip(xi_learn / gamma_unknown_from, 0.001, 0.999))
+        # Guess and slip are capped below 0.5 so "known" always means more likely correct.
+        if guess_den > _EPS:
+            g = float(np.clip(guess_num / guess_den, 0.001, 0.499))
+        if slip_den > _EPS:
+            s = float(np.clip(slip_num / slip_den, 0.001, 0.499))
 
-    return BKTParams(p_l0=float(p_l0), p_transit=float(p_t), p_guess=float(p_g), p_slip=float(p_s))
+        if abs(total_ll - prev_ll) < tol:
+            break
+        prev_ll = total_ll
 
-
-async def get_skill_attempt_count(db: AsyncSession, skill_id: str) -> int:
-    result = await db.execute(
-        select(func.count()).where(
-            LearningEvent.skill_id == skill_id,
-            LearningEvent.event_type == "answer",
-        )
-    )
-    return result.scalar() or 0
+    return BKTParams(p_l0=l0, p_transit=t, p_guess=g, p_slip=s)
 
 
 async def get_user_responses(db: AsyncSession, user_id: str, skill_id: str) -> list[bool]:
@@ -134,7 +146,7 @@ async def get_user_responses(db: AsyncSession, user_id: str, skill_id: str) -> l
 
 
 async def get_all_responses_for_skill(db: AsyncSession, skill_id: str) -> list[list[bool]]:
-    """Get response sequences grouped by user for parameter fitting."""
+    """Response sequences grouped by user, in time order, for parameter fitting."""
     rows = (
         await db.execute(
             select(LearningEvent.user_id, LearningEvent.correct)
@@ -153,20 +165,18 @@ async def get_all_responses_for_skill(db: AsyncSession, skill_id: str) -> list[l
     return list(sequences.values())
 
 
+async def get_params(db: AsyncSession, skill_id: str) -> BKTParams:
+    cached = _param_cache.get(skill_id)
+    if cached and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
+        return cached[1]
+    params = fit_bkt_params(await get_all_responses_for_skill(db, skill_id))
+    _param_cache[skill_id] = (time.monotonic(), params)
+    return params
+
+
 async def bkt_mastery(db: AsyncSession, user_id: str, skill_id: str) -> float:
-    """Compute BKT mastery for a user-skill pair."""
-    attempt_count = await get_skill_attempt_count(db, skill_id)
-    if attempt_count < MIN_ATTEMPTS:
-        return -1.0  # signal: not enough data for BKT
-
-    all_seqs = await get_all_responses_for_skill(db, skill_id)
-    params = fit_bkt_params(all_seqs)
-
-    user_responses = await get_user_responses(db, user_id, skill_id)
-    if not user_responses:
-        return params.p_l0
-
-    return bkt_forward(user_responses, params)
+    params = await get_params(db, skill_id)
+    return bkt_forward(await get_user_responses(db, user_id, skill_id), params)
 
 
 def can_activate(attempt_count: int) -> bool:

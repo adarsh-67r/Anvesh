@@ -1,3 +1,4 @@
+import hashlib
 import json
 import random
 from datetime import datetime
@@ -12,6 +13,7 @@ from app.llm import generate
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import GameSession, Skill, User
+from app.recommendation.orchestrator import record_answer
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -58,7 +60,7 @@ async def get_quiz(skill_id: str, user: User = Depends(get_current_user), db: As
 
     selected = random.sample(questions, min(5, len(questions)))
 
-    session = GameSession(user_id=user.id, skill_id=skill_id, total_questions=len(selected))
+    session = GameSession(user_id=user.id, skill_id=skill_id, total_questions=len(selected), questions=selected)
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -83,15 +85,18 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
     if session.completed_at:
         raise HTTPException(status_code=400, detail="Already completed")
 
-    skill = (await db.execute(select(Skill).where(Skill.id == session.skill_id))).scalar_one_or_none()
-    questions = await _generate_questions(skill.label) if skill else []
+    questions = session.questions or []
 
     score = 0
     for ans in body.answers:
         idx = ans.get("question_idx", -1)
-        if 0 <= idx < len(questions):
-            if ans.get("selected") == questions[idx].get("answer"):
-                score += 1
+        if not isinstance(idx, int) or not 0 <= idx < len(questions):
+            continue
+        q = questions[idx]
+        correct = ans.get("selected") == q.get("answer")
+        score += correct
+        qid = hashlib.sha1(q.get("text", "").encode()).hexdigest()[:16]
+        await record_answer(db, str(user.id), session.skill_id, correct, question_id=qid)
 
     session.score = score
     session.completed_at = datetime.utcnow()
