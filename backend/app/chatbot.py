@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from google import genai
 from google.genai import errors
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.attachments import AI_TYPES, can_access
+from app.attachments import AI_TYPES, MAX_BYTES, can_access
 from app.database import get_db
 from app.deps import get_current_user
 from app.llm import generate
@@ -77,6 +77,31 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user), db: As
     await db.commit()
 
     return {"reply": reply}
+
+
+AUDIO_TYPES = {"audio/m4a", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/webm", "audio/ogg", "audio/wav", "audio/mpeg", "video/webm"}
+
+
+@router.post("/transcribe")
+async def transcribe(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    content_type = (file.content_type or "").split(";")[0].lower()
+    if content_type not in AUDIO_TYPES:
+        raise HTTPException(status_code=415, detail=f"Unsupported audio type: {content_type or 'unknown'}")
+    data = await file.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Recording too long")
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty recording")
+    mime = "audio/webm" if content_type == "video/webm" else content_type
+    try:
+        text = await generate([
+            genai.types.Part.from_bytes(data=data, mime_type=mime),
+            "Transcribe this student's spoken question exactly, in the language spoken. "
+            "Return only the transcript. If there is no speech, return an empty string.",
+        ])
+    except errors.APIError:
+        raise HTTPException(status_code=503, detail="Voice input is busy, please try again in a moment.")
+    return {"text": text.strip()}
 
 
 @router.get("/history")

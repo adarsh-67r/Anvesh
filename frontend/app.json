@@ -28,7 +28,13 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Anvesh uses the microphone so you can ask the AI tutor questions by voice."
+        }
+      ]
     ],
     "extra": {
       "router": {},

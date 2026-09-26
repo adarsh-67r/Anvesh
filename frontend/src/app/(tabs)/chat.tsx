@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import * as Speech from "expo-speech";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
@@ -37,6 +44,51 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<PickedFile | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recState = useAudioRecorderState(recorder, 250);
+  const recording = recState.isRecording;
+
+  const startRecording = async () => {
+    const { granted } = await requestRecordingPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Microphone", "Allow microphone access to ask questions by voice.");
+      return;
+    }
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+  };
+
+  const stopRecording = async () => {
+    await recorder.stop();
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    const uri = recorder.uri;
+    if (!uri) return;
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(uri)).blob();
+        form.append("file", blob, "voice.webm");
+      } else {
+        form.append("file", { uri, name: "voice.m4a", type: "audio/m4a" } as unknown as Blob);
+      }
+      const { text } = await api.upload<{ text: string }>("/api/chat/transcribe", form);
+      if (text) setInput((prev) => (prev ? `${prev} ${text}` : text));
+      else Alert.alert("Voice Input", "Didn't catch that. Try again a little closer to the mic.");
+    } catch {
+      Alert.alert("Voice Input", "Could not transcribe. Please try again.");
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  // Keep recordings short so uploads stay under the 5 MB limit.
+  useEffect(() => {
+    if (recording && recState.durationMillis >= 60000) stopRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, recState.durationMillis]);
   const scrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(
@@ -149,6 +201,14 @@ export default function ChatScreen() {
           )}
         </ScrollView>
 
+        {recording && (
+          <View style={styles.recordingBar} accessibilityLiveRegion="polite">
+            <MaterialIcons name="fiber-manual-record" size={14} color={colors.error} />
+            <Text style={styles.recordingText}>
+              Listening... {Math.floor(recState.durationMillis / 1000)}s. Tap stop when done.
+            </Text>
+          </View>
+        )}
         {pending && (
           <View style={styles.pendingBar}>
             <MaterialIcons name={fileIcon(pending.mimeType)} size={18} color={colors.primary} />
@@ -177,10 +237,16 @@ export default function ChatScreen() {
             maxLength={2000}
           />
           <TouchableOpacity
-            style={styles.micBtn}
-            onPress={() => Alert.alert("Voice Input", "Voice input coming soon.")}
+            style={[styles.micBtn, recording && styles.micBtnRecording]}
+            onPress={recording ? stopRecording : startRecording}
+            disabled={transcribing || sending}
+            accessibilityLabel={recording ? "Stop recording" : "Ask by voice"}
           >
-            <MaterialIcons name="mic" size={20} color={colors.textSecondary} />
+            {transcribing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <MaterialIcons name={recording ? "stop" : "mic"} size={20} color={recording ? "#FFFFFF" : colors.textSecondary} />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.sendBtn, ((!input.trim() && !pending) || sending) && styles.sendBtnDisabled]}
@@ -271,6 +337,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sendBtnDisabled: { opacity: 0.5 },
+  micBtnRecording: { backgroundColor: colors.error },
+  recordingBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.errorLight,
+  },
+  recordingText: { ...typography.bodyMd, color: colors.error, flex: 1 },
   fileChip: {
     flexDirection: "row",
     alignItems: "center",
