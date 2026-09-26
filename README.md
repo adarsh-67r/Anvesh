@@ -114,9 +114,9 @@ flowchart TB
     CHAT -->|API Call| GEMINI
     API -->|asyncpg| SUPA
 
-    style RecEngine fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#111827
-    style FUTURE fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray: 5 5,color:#111827
-    style Client fill:#f0fdf4,stroke:#22c55e,color:#111827
+    style RecEngine stroke:#3b82f6,stroke-width:2px
+    style FUTURE stroke:#9ca3af,stroke-dasharray: 5 5
+    style Client stroke:#22c55e
 ```
 
 ### Recommendation Engine Pipeline
@@ -155,9 +155,9 @@ flowchart LR
     P2 --> REC
     ORC --> RISK
 
-    style Pipeline fill:#fef3c7,stroke:#f59e0b,color:#111827
-    style Phases fill:#dbeafe,stroke:#3b82f6,color:#111827
-    style Output fill:#dcfce7,stroke:#22c55e,color:#111827
+    style Pipeline stroke:#f59e0b
+    style Phases stroke:#3b82f6
+    style Output stroke:#22c55e
 ```
 
 ---
