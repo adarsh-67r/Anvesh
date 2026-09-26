@@ -67,13 +67,14 @@ A unified adaptive learning platform where every feature is connected to a singl
 
 ```mermaid
 flowchart TB
-    subgraph Client["Android App (Expo / React Native)"]
-        FE["Dashboard · Learning · Flashcards<br/>AI Tutor · Timer · Game · Groups"]
+    subgraph Client["📱 Android App"]
+        FE["Dashboard • Learning • Flashcards<br/>AI Tutor • Timer • Game • Groups"]
+        CACHE["Offline Flashcard Cache<br/>(syncs when online)"]
     end
 
-    subgraph Render["Render"]
+    subgraph Render["☁️ Render"]
         API["FastAPI Backend"]
-        subgraph RecEngine["Recommendation Engine<br/>(Production Module)"]
+        subgraph RecEngine["🧠 Recommendation Engine<br/>(Production Module)"]
             KG["Knowledge Graph<br/>(DAG)"]
             ORC["Orchestrator<br/>(Auto Phase Selection)"]
             EMA["Phase 0: EMA<br/>Rule-Based Mastery"]
@@ -82,11 +83,12 @@ flowchart TB
             FUTURE["Phase 3-4: DKT / Semi-MoE<br/>(Future)"]
         end
         AUTH["Auth (JWT)"]
-        CHAT["Chatbot"]
+        CHAT["AI Tutor<br/>(voice + photo/PDF)"]
         FLASH["Flashcards (SM-2)"]
         TODOS["Smart Todos"]
         GAME["Quiz Game"]
-        GROUPS["Study Groups"]
+        GROUPS["Study Groups<br/>(chat + shared files)"]
+        EVENTS["Event Logger"]
     end
 
     subgraph External["External Services"]
@@ -102,6 +104,8 @@ flowchart TB
     API --> TODOS
     API --> GAME
     API --> GROUPS
+    API --> EVENTS
+    EVENTS --> RecEngine
     ORC --> EMA
     ORC --> BKT
     ORC --> IRT

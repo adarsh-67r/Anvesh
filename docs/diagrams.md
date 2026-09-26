@@ -8,12 +8,9 @@ Render these on [mermaid.live](https://mermaid.live) and export as PNG for the P
 
 ```mermaid
 flowchart TB
-    subgraph Client["🖥️ Client (Browser / PWA)"]
-        FE["Next.js Frontend<br/>Dashboard • Learning • Flashcards<br/>Chat • Timer • Game • Groups"]
-    end
-
-    subgraph Vercel["☁️ Vercel"]
-        FE
+    subgraph Client["📱 Android App"]
+        FE["Dashboard • Learning • Flashcards<br/>AI Tutor • Timer • Game • Groups"]
+        CACHE["Offline Flashcard Cache<br/>(syncs when online)"]
     end
 
     subgraph Render["☁️ Render"]
@@ -27,11 +24,12 @@ flowchart TB
             FUTURE["Phase 3-4: DKT / Semi-MoE<br/>(Future)"]
         end
         AUTH["Auth (JWT)"]
-        CHAT["Chatbot"]
+        CHAT["AI Tutor<br/>(voice + photo/PDF)"]
         FLASH["Flashcards (SM-2)"]
         TODOS["Smart Todos"]
         GAME["Quiz Game"]
-        GROUPS["Study Groups"]
+        GROUPS["Study Groups<br/>(chat + shared files)"]
+        EVENTS["Event Logger"]
     end
 
     subgraph External["External Services"]
@@ -47,6 +45,8 @@ flowchart TB
     API --> TODOS
     API --> GAME
     API --> GROUPS
+    API --> EVENTS
+    EVENTS --> RecEngine
     ORC --> EMA
     ORC --> BKT
     ORC --> IRT
@@ -211,11 +211,11 @@ timeline
 flowchart LR
     LOGIN["🔑 Login"] --> DASH["📊 Dashboard"]
     DASH --> LEARN["📚 Learning<br/>Recommended Skills + Videos"]
-    DASH --> CARDS["🧠 Flashcards<br/>Create & Review (SM-2)"]
-    DASH --> CHAT["🤖 AI Chat<br/>Ask Doubts + Voice"]
+    DASH --> CARDS["🧠 Flashcards<br/>Review (SM-2), works offline"]
+    DASH --> CHAT["🤖 AI Tutor<br/>Voice, Photo & PDF Doubts"]
     DASH --> TODO["📋 Todos<br/>Smart Suggestions"]
     DASH --> TIMER["⏱️ Pomodoro Timer"]
-    DASH --> GROUP["👥 Study Groups"]
+    DASH --> GROUP["👥 Study Groups<br/>Chat + Shared Files"]
 
     LEARN -->|"Answer Questions"| REC["🎯 Mastery Updates<br/>+ New Recommendations"]
     TIMER -->|"60 min studied"| GAME["🎮 Quiz Game<br/>Unlocked!"]
