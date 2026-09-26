@@ -12,6 +12,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.attachments import router as attachments_router
 from app.auth import router as auth_router
 from app.chatbot import router as chat_router
 from app.flashcards import router as flashcards_router
@@ -29,6 +30,7 @@ app.include_router(flashcards_router)
 app.include_router(todos_router)
 app.include_router(groups_router)
 app.include_router(game_router)
+app.include_router(attachments_router)
 
 
 @app.get("/api/health")
