@@ -7,6 +7,7 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models import Skill, SkillMastery, SkillVideo, User
 from app.recommendation import orchestrator
+from app.recommendation.event_logger import log_event
 from app.recommendation.knowledge_graph import KnowledgeGraph, SkillNode
 
 router = APIRouter(prefix="/api/recommend", tags=["recommendation"])
@@ -21,6 +22,17 @@ class AnswerRequest(BaseModel):
 
 class PrerequisitesRequest(BaseModel):
     prerequisites: list[str]
+
+
+# Answers go through /answer so mastery updates; everything else is logged here.
+EVENT_TYPES = {"video_play", "study_session", "hint", "content_view"}
+
+
+class EventRequest(BaseModel):
+    event_type: str
+    skill_id: str = "general"
+    response_time_ms: int | None = None
+    context: dict | None = None
 
 
 @router.get("/next")
@@ -98,6 +110,22 @@ async def full_graph(user: User = Depends(get_current_user), db: AsyncSession = 
             "video_count": video_counts.get(skill.id, 0),
         })
     return nodes
+
+
+@router.post("/events")
+async def log_learning_event(body: EventRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if body.event_type not in EVENT_TYPES:
+        raise HTTPException(status_code=400, detail=f"event_type must be one of {sorted(EVENT_TYPES)}")
+    if body.context and len(str(body.context)) > 2000:
+        raise HTTPException(status_code=413, detail="context too large")
+    if body.event_type == "study_session":
+        minutes = (body.context or {}).get("minutes")
+        if not isinstance(minutes, int) or not 1 <= minutes <= 25:
+            raise HTTPException(status_code=400, detail="study_session needs context.minutes between 1 and 25")
+    await log_event(db, str(user.id), body.skill_id[:100], body.event_type,
+                    response_time_ms=body.response_time_ms, context=body.context)
+    await db.commit()
+    return {"ok": True}
 
 
 @router.put("/skills/{skill_id}/prerequisites")

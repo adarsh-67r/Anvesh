@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Flashcard, User
+from app.recommendation.event_logger import log_event
 
 router = APIRouter(prefix="/api/flashcards", tags=["flashcards"])
 
@@ -101,6 +102,8 @@ async def review_card(card_id: UUID, body: ReviewRequest, user: User = Depends(g
         raise HTTPException(status_code=400, detail="Quality must be 0-5")
     card = await _get_card(db, card_id, user.id)
     sm2_update(card, body.quality)
+    await log_event(db, str(user.id), card.skill_id or "flashcards", "flashcard_review",
+                    correct=body.quality >= 3, context={"card_id": str(card.id), "quality": body.quality})
     await db.commit()
     return _card_dict(card)
 

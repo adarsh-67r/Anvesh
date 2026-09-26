@@ -20,7 +20,7 @@ let YoutubePlayer: any = null;
 if (Platform.OS !== "web") {
   YoutubePlayer = require("react-native-youtube-iframe").default;
 }
-import { api } from "../../lib/api";
+import { api, logEvent } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type MasteryInfo = { skill_id: string; mastery_score: number; phase: string };
@@ -327,7 +327,11 @@ export default function SkillScreen() {
                 ) : null
               ) : (
                 <TouchableOpacity
-                  onPress={() => ytId ? setPlayingId(v.id) : Linking.openURL(v.url)}
+                  onPress={() => {
+                    logEvent("video_play", id, { video_id: v.id });
+                    if (ytId) setPlayingId(v.id);
+                    else Linking.openURL(v.url);
+                  }}
                   activeOpacity={0.7}
                 >
                   {ytId ? (
