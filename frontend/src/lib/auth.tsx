@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, setToken, clearToken, getToken } from "./api";
+import { router } from "expo-router";
+import { api, setToken, clearToken, getToken, setUnauthorizedHandler } from "./api";
 
 type User = { id: string; name: string; email: string };
 
@@ -24,21 +25,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getToken().then((t) => {
-      if (t) {
-        api
-          .get<{ status: string }>("/api/health")
-          .then(() => {
-            // Token exists and server is reachable — we'll lazy-load user info from protected endpoints
-            // For now just mark as authenticated with a stub user
-            setUser({ id: "", name: "", email: "" });
-          })
-          .catch(() => clearToken())
-          .finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      router.replace("/(auth)/login");
     });
+    getToken().then(async (t) => {
+      if (t) {
+        try {
+          setUser(await api.get<User>("/api/auth/me"));
+        } catch {
+          // A 401 already cleared the token; any other error (offline, server waking up) keeps the session.
+          if (await getToken()) setUser({ id: "", name: "", email: "" });
+        }
+      }
+      setLoading(false);
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = async (email: string, password: string) => {

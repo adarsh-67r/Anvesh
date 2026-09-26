@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 import bcrypt
 from pydantic import BaseModel
@@ -64,3 +65,11 @@ async def register(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(user)
     return {"token": create_token(user.id), "user": {"id": str(user.id), "name": user.name, "email": user.email}}
+
+
+@router.get("/me")
+async def me(creds: HTTPAuthorizationCredentials = Depends(HTTPBearer()), db: AsyncSession = Depends(get_db)):
+    user = await db.get(User, verify_token(creds.credentials))
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return {"id": str(user.id), "name": user.name, "email": user.email}
