@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.llm import generate
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import GameSession, Skill, User
@@ -30,16 +30,13 @@ async def _generate_questions(skill_label: str) -> list[dict]:
         return _quiz_cache[skill_label]
 
     try:
-        from google import genai
-        client = genai.Client(api_key=settings.gemini_api_key)
         prompt = (
             f"Generate 5 multiple choice questions about '{skill_label}'. "
             f"Return ONLY a JSON array, each object with: "
             f'"text" (question), "options" (4 strings), "answer" (the correct option string). '
             f"No markdown, no explanation, just the JSON array."
         )
-        response = client.models.generate_content(model="gemini-3.8-flash", contents=prompt)
-        text = response.text.strip()
+        text = (await generate(prompt)).strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         questions = json.loads(text)

@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from google import genai
+from google.genai import errors
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
+from app.llm import generate
 from app.models import ChatMessage, User
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -47,14 +48,12 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user), db: As
     if body.skill_context:
         system_text += f"\n\nThe student is currently studying: {body.skill_context}"
 
-    client = genai.Client(api_key=settings.gemini_api_key)
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=contents,
-        config=genai.types.GenerateContentConfig(system_instruction=system_text),
-    )
+    try:
+        reply = await generate(contents, genai.types.GenerateContentConfig(system_instruction=system_text))
+    except errors.APIError:
+        raise HTTPException(status_code=503, detail="AI tutor is busy, please try again in a moment.")
 
-    reply = response.text or "I couldn't generate a response. Please try again."
+    reply = reply or "I couldn't generate a response. Please try again."
     db.add(ChatMessage(user_id=user.id, role="assistant", content=reply))
     await db.commit()
 
