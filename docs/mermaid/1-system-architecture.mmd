@@ -1,10 +1,7 @@
 flowchart TB
-    subgraph Client["🖥️ Client (Browser / PWA)"]
-        FE["Next.js Frontend<br/>Dashboard • Learning • Flashcards<br/>Chat • Timer • Game • Groups"]
-    end
-
-    subgraph Vercel["☁️ Vercel"]
-        FE
+    subgraph Client["📱 Android App"]
+        FE["Dashboard • Learning • Flashcards<br/>AI Tutor • Timer • Game • Groups"]
+        CACHE["Offline Flashcard Cache<br/>(syncs when online)"]
     end
 
     subgraph Render["☁️ Render"]
@@ -18,11 +15,12 @@ flowchart TB
             FUTURE["Phase 3-4: DKT / Semi-MoE<br/>(Future)"]
         end
         AUTH["Auth (JWT)"]
-        CHAT["Chatbot"]
+        CHAT["AI Tutor<br/>(voice + photo/PDF)"]
         FLASH["Flashcards (SM-2)"]
         TODOS["Smart Todos"]
         GAME["Quiz Game"]
-        GROUPS["Study Groups"]
+        GROUPS["Study Groups<br/>(chat + shared files)"]
+        EVENTS["Event Logger"]
     end
 
     subgraph External["External Services"]
@@ -38,6 +36,8 @@ flowchart TB
     API --> TODOS
     API --> GAME
     API --> GROUPS
+    API --> EVENTS
+    EVENTS --> RecEngine
     ORC --> EMA
     ORC --> BKT
     ORC --> IRT
