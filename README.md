@@ -244,11 +244,11 @@ SM-2 spaced repetition (Wozniak 1994) is integrated directly into the learning f
 
 ## Knowledge Graph
 
-The recommendation engine is powered by a skill prerequisite graph. Here's the seed graph for 8th grade mathematics (18 nodes):
+The recommendation engine works on a skill prerequisite graph: a skill is recommended only once all its prerequisites are mastered. In the app, skills come from YouTube playlists and prerequisites are set on each skill's screen (cycles are rejected). Example graph for 8th grade mathematics (18 skills), shown for a student who has mastered the first three:
 
 ```mermaid
 flowchart TD
-    NUM["Number Systems<br/>Depth 0"] --> FRAC["Fractions & Decimals"]
+    NUM["Number Systems"] --> FRAC["Fractions & Decimals"]
     NUM --> INT["Integers & Operations"]
     NUM --> GEO["Basic Geometry"]
     INT --> EXP["Exponents & Powers"]
@@ -272,27 +272,15 @@ flowchart TD
     EXP --> POLY
     POLY --> QEQN["Quadratic Equations"]
 
-    style NUM fill:#22c55e,color:#fff
-    style FRAC fill:#22c55e,color:#fff
-    style INT fill:#22c55e,color:#fff
-    style GEO fill:#3b82f6,color:#fff
-    style ALG fill:#3b82f6,color:#fff
-    style EXP fill:#9ca3af,color:#fff
-    style RAT fill:#9ca3af,color:#fff
-    style TRI fill:#9ca3af,color:#fff
-    style DATA fill:#9ca3af,color:#fff
-    style LEQ fill:#9ca3af,color:#fff
-    style PCT fill:#9ca3af,color:#fff
-    style AREA fill:#9ca3af,color:#fff
-    style QUAD fill:#9ca3af,color:#fff
-    style PROB fill:#9ca3af,color:#fff
-    style LINEQ fill:#9ca3af,color:#fff
-    style COORD fill:#9ca3af,color:#fff
-    style POLY fill:#9ca3af,color:#fff
-    style QEQN fill:#9ca3af,color:#fff
+    classDef mastered fill:#16a34a,stroke:#15803d,color:#fff
+    classDef available fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef locked fill:#6b7280,stroke:#9ca3af,color:#fff
+    class NUM,FRAC,INT mastered
+    class GEO,EXP,RAT,ALG,DATA available
+    class TRI,LEQ,PCT,AREA,QUAD,PROB,LINEQ,COORD,POLY,QEQN locked
 ```
 
-**Legend:** 🟢 Mastered → 🔵 Available (prerequisites met) → ⚪ Locked
+**Legend:** 🟢 Mastered · 🔵 Available (all prerequisites mastered, so it can be recommended) · ⚪ Locked
 
 ---
 
@@ -400,7 +388,7 @@ Anvesh/
 │   │   ├── database.py                   # Async SQLAlchemy engine
 │   │   └── deps.py                       # Auth dependency injection
 │   ├── data/
-│   │   └── knowledge_graph.json          # Seed knowledge graph (18 nodes, 8th grade math)
+│   │   └── knowledge_graph.json          # Example knowledge graph (docs only; app skills live in the DB)
 │   ├── alembic/                          # Database migrations
 │   ├── seed.py                           # Demo account seeder
 │   ├── requirements.txt

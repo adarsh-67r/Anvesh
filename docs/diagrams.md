@@ -138,67 +138,36 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    NUM["🔢 Number Systems<br/>Depth 0"]
-    FRAC["➗ Fractions & Decimals<br/>Depth 1"]
-    INT["± Integers & Operations<br/>Depth 1"]
-    GEO["📐 Basic Geometry<br/>Depth 1"]
-    EXP["🔋 Exponents & Powers<br/>Depth 2"]
-    RAT["⚖️ Ratios & Proportions<br/>Depth 2"]
-    ALG["🔤 Algebraic Expressions<br/>Depth 2"]
-    TRI["△ Triangles<br/>Depth 2"]
-    DATA["📊 Data Handling<br/>Depth 2"]
-    LEQ["📈 Linear Equations<br/>Depth 3"]
-    PCT["% Percentages<br/>Depth 3"]
-    AREA["📏 Area & Perimeter<br/>Depth 3"]
-    QUAD["◇ Quadrilaterals<br/>Depth 3"]
-    PROB["🎲 Probability<br/>Depth 3"]
-    LINEQ["≤ Linear Inequalities<br/>Depth 4"]
-    COORD["📍 Coordinate Geometry<br/>Depth 4"]
-    POLY["📐 Polynomials<br/>Depth 4"]
-    QEQN["x² Quadratic Equations<br/>Depth 5"]
-
-    NUM --> FRAC
-    NUM --> INT
-    NUM --> GEO
-    INT --> EXP
-    FRAC --> RAT
-    INT --> ALG
+    NUM["Number Systems"] --> FRAC["Fractions & Decimals"]
+    NUM --> INT["Integers & Operations"]
+    NUM --> GEO["Basic Geometry"]
+    INT --> EXP["Exponents & Powers"]
+    FRAC --> RAT["Ratios & Proportions"]
+    INT --> ALG["Algebraic Expressions"]
     FRAC --> ALG
-    GEO --> TRI
-    FRAC --> DATA
-    ALG --> LEQ
-    RAT --> PCT
+    GEO --> TRI["Triangles & Congruence"]
+    FRAC --> DATA["Data Handling"]
+    ALG --> LEQ["Linear Equations"]
+    RAT --> PCT["Percentages"]
     FRAC --> PCT
-    TRI --> AREA
+    TRI --> AREA["Area & Perimeter"]
     ALG --> AREA
-    TRI --> QUAD
-    DATA --> PROB
+    TRI --> QUAD["Quadrilaterals"]
+    DATA --> PROB["Probability"]
     FRAC --> PROB
-    LEQ --> LINEQ
-    LEQ --> COORD
+    LEQ --> LINEQ["Linear Inequalities"]
+    LEQ --> COORD["Coordinate Geometry"]
     GEO --> COORD
-    LEQ --> POLY
+    LEQ --> POLY["Polynomials"]
     EXP --> POLY
-    POLY --> QEQN
+    POLY --> QEQN["Quadratic Equations"]
 
-    style NUM fill:#22c55e,color:#fff
-    style FRAC fill:#22c55e,color:#fff
-    style INT fill:#22c55e,color:#fff
-    style GEO fill:#3b82f6,color:#fff
-    style ALG fill:#3b82f6,color:#fff
-    style EXP fill:#9ca3af,color:#fff
-    style RAT fill:#9ca3af,color:#fff
-    style TRI fill:#9ca3af,color:#fff
-    style DATA fill:#9ca3af,color:#fff
-    style LEQ fill:#9ca3af,color:#fff
-    style PCT fill:#9ca3af,color:#fff
-    style AREA fill:#9ca3af,color:#fff
-    style QUAD fill:#9ca3af,color:#fff
-    style PROB fill:#9ca3af,color:#fff
-    style LINEQ fill:#9ca3af,color:#fff
-    style COORD fill:#9ca3af,color:#fff
-    style POLY fill:#9ca3af,color:#fff
-    style QEQN fill:#9ca3af,color:#fff
+    classDef mastered fill:#16a34a,stroke:#15803d,color:#fff
+    classDef available fill:#2563eb,stroke:#1d4ed8,color:#fff
+    classDef locked fill:#6b7280,stroke:#9ca3af,color:#fff
+    class NUM,FRAC,INT mastered
+    class GEO,EXP,RAT,ALG,DATA available
+    class TRI,LEQ,PCT,AREA,QUAD,PROB,LINEQ,COORD,POLY,QEQN locked
 ```
 
 **Legend**: 🟢 Mastered → 🔵 Available (prereqs met) → ⚪ Locked
