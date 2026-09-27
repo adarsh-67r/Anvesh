@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as Speech from "expo-speech";
 import {
   RecordingPresets,
@@ -24,6 +24,7 @@ import {
 } from "expo-audio";
 import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
+import { ScreenHeader } from "../../components/Sidebar";
 
 type Message = { role: string; content: string; created_at: string; attachment?: Attachment | null };
 
@@ -43,6 +44,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const { label: skillLabel } = useLocalSearchParams<{ label?: string }>();
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -131,7 +133,7 @@ export default function ChatScreen() {
       if (uploaded) {
         setMessages((prev) => prev.map((m) => (m === userMsg ? { ...m, attachment: uploaded } : m)));
       }
-      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id });
+      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id, skill_context: skillLabel || undefined });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: res.reply, created_at: new Date().toISOString() },
@@ -147,11 +149,8 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <MaterialIcons name="smart-toy" size={24} color={colors.primary} />
-        <Text style={styles.title}>AI Tutor</Text>
-      </View>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader title="AI Tutor" subtitle={skillLabel ? `Helping with ${skillLabel}` : "Ask anything, by text, voice or photo"} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

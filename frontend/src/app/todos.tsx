@@ -113,7 +113,7 @@ export default function TodosScreen() {
   const overdue = todos.filter((t) => !t.is_done && t.due_date && t.due_date < today.toISOString().split("T")[0]);
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />

@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
+import { ScreenHeader } from "../../components/Sidebar";
 import { Card, loadDueCards, reviewCard } from "../../lib/offline";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
@@ -80,13 +81,16 @@ export default function CardsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Flashcards</Text>
-        <TouchableOpacity onPress={() => setShowCreate(!showCreate)}>
-          <MaterialIcons name={showCreate ? "close" : "add"} size={28} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader
+        title="Review"
+        subtitle="Spaced-repetition flashcards"
+        right={
+          <TouchableOpacity onPress={() => setShowCreate(!showCreate)} accessibilityLabel={showCreate ? "Close new card form" : "New flashcard"} hitSlop={8}>
+            <MaterialIcons name={showCreate ? "close" : "add"} size={28} color={colors.primary} />
+          </TouchableOpacity>
+        }
+      />
 
       {showCreate && (
         <View style={styles.createForm}>

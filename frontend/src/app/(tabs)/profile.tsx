@@ -8,21 +8,19 @@ import {
   TextInput,
   Alert,
   RefreshControl,
-  Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { api, Attachment, GROUP_FILE_TYPES, openAttachment, pickFile, uploadAttachment } from "../../lib/api";
-import { useAuth } from "../../lib/auth";
+import { ScreenHeader } from "../../components/Sidebar";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type Group = { id: string; name: string; invite_code: string; member_count?: number };
 type SharedDeck = { id: string; shared_by: string; cards: { front: string; back: string }[] };
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
@@ -96,49 +94,26 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    if (Platform.OS === "web") {
-      if (!confirm("Log out?")) return;
-    } else {
-      return new Promise<void>((resolve) => {
-        Alert.alert("Log Out", "Are you sure?", [
-          { text: "Cancel", style: "cancel", onPress: () => resolve() },
-          { text: "Log Out", style: "destructive", onPress: async () => { await logout(); router.replace("/(auth)/login"); resolve(); } },
-        ]);
-      });
-    }
-    await logout();
-    router.replace("/(auth)/login");
-  };
-
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader
+        title="Study Groups"
+        subtitle={`${groups.length} group${groups.length === 1 ? "" : "s"}`}
+        right={
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
+            <TouchableOpacity onPress={() => setShowJoin(!showJoin)} accessibilityLabel="Join a group" hitSlop={8}>
+              <MaterialIcons name="group-add" size={26} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowCreate(!showCreate)} accessibilityLabel="Create a group" hitSlop={8}>
+              <MaterialIcons name="add-circle" size={26} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        }
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} colors={[colors.primary]} />}
       >
-        {/* Profile Header */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={40} color={colors.textMuted} />
-          </View>
-          <Text style={styles.userName}>{user?.name || "Student"}</Text>
-          <Text style={styles.userEmail}>{user?.email || ""}</Text>
-        </View>
-
-        {/* Study Groups */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Study Groups ({groups.length})</Text>
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <TouchableOpacity onPress={() => setShowJoin(!showJoin)}>
-              <MaterialIcons name="group-add" size={24} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowCreate(!showCreate)}>
-              <MaterialIcons name="add-circle" size={24} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {showJoin && (
           <View style={styles.inlineForm}>
             <TextInput
@@ -254,10 +229,6 @@ export default function ProfileScreen() {
         )}
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <MaterialIcons name="logout" size={20} color={colors.error} />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -266,26 +237,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   scroll: { padding: spacing.md, paddingBottom: spacing.xl },
-  profileCard: {
-    alignItems: "center",
-    backgroundColor: colors.surfaceWhite,
-    borderRadius: radii.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.locked,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  userName: { ...typography.headlineMd, color: colors.text },
-  userEmail: { ...typography.bodyMd, color: colors.textSecondary },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -360,18 +311,6 @@ const styles = StyleSheet.create({
   },
   deckName: { ...typography.bodySm, color: colors.text },
   emptyText: { ...typography.bodyMd, color: colors.textMuted, textAlign: "center", marginVertical: spacing.lg },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.errorLight,
-  },
-  logoutText: { ...typography.labelLg, color: colors.error },
   filesHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

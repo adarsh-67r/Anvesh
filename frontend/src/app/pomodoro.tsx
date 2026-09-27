@@ -87,7 +87,7 @@ export default function PomodoroScreen() {
   const modeColor = mode === "focus" ? colors.primary : mode === "short" ? colors.secondary : colors.tertiary;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />

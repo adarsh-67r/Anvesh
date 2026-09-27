@@ -11,6 +11,7 @@ import {
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { AuthProvider } from "../lib/auth";
+import { SidebarProvider } from "../components/Sidebar";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,8 +32,10 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <Slot />
+      <SidebarProvider>
+        <StatusBar style="dark" />
+        <Slot />
+      </SidebarProvider>
     </AuthProvider>
   );
 }

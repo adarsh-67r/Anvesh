@@ -127,7 +127,7 @@ export default function QuizScreen() {
 
   if (showPicker) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => router.back()}>
             <MaterialIcons name="close" size={24} color={colors.text} />
@@ -179,7 +179,7 @@ export default function QuizScreen() {
 
   if (blocked) {
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.resultContainer}>
           <MaterialIcons name={blocked.locked ? "lock-clock" : "cloud-off"} size={56} color={colors.secondary} />
           <Text style={styles.resultMsg}>{blocked.locked ? "Quiz locked" : "Quiz unavailable"}</Text>
@@ -207,7 +207,7 @@ export default function QuizScreen() {
   if (result) {
     const xpEarned = result.score * 50;
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.resultContainer}>
           <MaterialIcons
             name={result.percentage >= 70 ? "emoji-events" : "refresh"}
@@ -244,7 +244,7 @@ export default function QuizScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="close" size={24} color={colors.text} />
