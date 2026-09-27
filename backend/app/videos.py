@@ -82,16 +82,6 @@ async def video_detail(video_id: UUID, user: User = Depends(get_current_user), d
     }
 
 
-@router.get("/{skill_id}")
-async def get_videos(skill_id: str, db: AsyncSession = Depends(get_db)):
-    videos = (
-        await db.execute(
-            select(SkillVideo).where(SkillVideo.skill_id == skill_id).order_by(SkillVideo.display_order)
-        )
-    ).scalars().all()
-    return [{"id": str(v.id), "title": v.title, "url": v.url, "display_order": v.display_order} for v in videos]
-
-
 @router.post("")
 async def add_video(body: AddVideoRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if YOUTUBE_PLAYLIST_RE.search(body.url):
