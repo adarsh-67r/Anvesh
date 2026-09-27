@@ -8,16 +8,27 @@ import { api } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 import { AnswerFx, Confetti, CountUp, PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
 import { feedback } from "../../lib/feedback";
+import { fmtTs } from "../../lib/trails";
 
-type Question = { id: string; text: string; options: string[]; answer: string; explanation: string | null };
-type Practice = { skill: { id: string; label: string }; questions: Question[] };
+type Question = {
+  id: string;
+  text: string;
+  options: string[];
+  answer: string;
+  explanation: string | null;
+  lesson_id: string | null;
+  lesson_title: string | null;
+  lesson_index: number | null;
+  timestamp_sec: number | null;
+};
+type Practice = { skill?: { id: string; label: string }; method: "captions" | "gemini" | "titles"; questions: Question[] };
 type AnswerResult = { mastery_score: number; is_mastered: boolean };
 type Rec = { skill_id: string; label: string };
 
 const pct = (x: number) => Math.round(x * 100);
 
 export default function PracticeScreen() {
-  const { skillId } = useLocalSearchParams<{ skillId: string }>();
+  const { skillId, lesson, mode } = useLocalSearchParams<{ skillId: string; lesson?: string; mode?: string }>();
   const [data, setData] = useState<Practice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
@@ -28,6 +39,9 @@ export default function PracticeScreen() {
   const [done, setDone] = useState(false);
   const [next, setNext] = useState<Rec | null>(null);
   const shownAt = useRef(Date.now());
+  const [preparing, setPreparing] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
   const load = useCallback(async () => {
     setData(null);
@@ -37,9 +51,21 @@ export default function PracticeScreen() {
     setCorrectCount(0);
     setDone(false);
     setMastery(null);
+    setPreparing(null);
+    const path = lesson ? `/api/topics/${skillId}/lessons/${lesson}/check` : `/api/game/practice/${skillId}`;
+    const fetchReady = async (): Promise<Practice> => {
+      for (;;) {
+        const res = await api.get<Practice & { status?: string; progress?: string }>(path);
+        if (!res.status) return res;
+        if (res.status === "failed") throw new Error(JSON.stringify({ detail: "Could not read the lectures right now. Try again shortly." }));
+        if (!alive.current) throw new Error("{}");
+        setPreparing(res.progress || "");
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    };
     try {
       const [p, m] = await Promise.all([
-        api.get<Practice>(`/api/game/practice/${skillId}`),
+        fetchReady(),
         api.get<{ mastery_score: number }>(`/api/recommend/mastery/${skillId}`).catch(() => ({ mastery_score: 0 })),
       ]);
       setStartMastery(m.mastery_score);
@@ -49,7 +75,7 @@ export default function PracticeScreen() {
       const detail = (() => { try { return JSON.parse(e.message).detail as string; } catch { return ""; } })();
       setError(detail || "Could not load practice questions. Check your connection and try again.");
     }
-  }, [skillId]);
+  }, [skillId, lesson]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -92,7 +118,7 @@ export default function PracticeScreen() {
       <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Close practice" hitSlop={8}>
         <MaterialIcons name="close" size={24} color={colors.text} />
       </TouchableOpacity>
-      <Text style={styles.topTitle} numberOfLines={1}>{data?.skill.label ?? "Practice"}</Text>
+      <Text style={styles.topTitle} numberOfLines={1}>{mode === "testout" ? "Test out" : lesson ? "Quick check" : data?.skill?.label ?? "Practice"}</Text>
       <View style={{ width: 24 }} />
     </View>
   );
@@ -119,8 +145,9 @@ export default function PracticeScreen() {
         <View style={styles.body} accessibilityLabel="Preparing questions">
           <Animated.View entering={FadeIn} style={styles.preparing}>
             <MaterialIcons name="auto-awesome" size={18} color={colors.primary} />
-            <Text style={styles.preparingText}>Preparing questions for you…</Text>
+            <Text style={styles.preparingText}>{preparing !== null ? "Reading the lectures…" : "Preparing questions for you…"}</Text>
           </Animated.View>
+          {preparing ? <Text style={styles.preparingSub}>{preparing}</Text> : null}
           <Skeleton height={22} width="85%" />
           <Skeleton height={22} width="60%" style={{ marginBottom: spacing.md }} />
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} height={56} radius={radii.lg} style={{ marginBottom: spacing.sm }} />)}
@@ -190,6 +217,9 @@ export default function PracticeScreen() {
       <ProgressBar value={(idx + (picked ? 1 : 0)) / data.questions.length} duration={450} style={{ marginHorizontal: spacing.md }} />
       <ScrollView contentContainerStyle={styles.body}>
         <Animated.View key={idx} entering={SlideInRight.springify().damping(20)} exiting={SlideOutLeft.duration(180)}>
+        {idx === 0 && data.method === "titles" && (
+          <Text style={styles.titlesNote}>These questions come from lesson titles; the lectures couldn&apos;t be read yet.</Text>
+        )}
         <Text style={styles.counter}>Question {idx + 1} of {data.questions.length}</Text>
         <Text style={styles.question}>{q?.text}</Text>
 
@@ -224,6 +254,14 @@ export default function PracticeScreen() {
               {picked === q?.answer ? "Correct!" : "Not quite"}
             </Text>
             {q?.explanation ? <Text style={styles.feedbackText}>{q.explanation}</Text> : null}
+            {picked !== q?.answer && q?.lesson_id && (
+              <PressableScale style={styles.watchBtn} onPress={() => router.push(`/lecture/${q.lesson_id}${q.timestamp_sec != null ? `?t=${q.timestamp_sec}` : ""}`)}>
+                <MaterialIcons name="replay" size={18} color={colors.primary} />
+                <Text style={styles.watchText}>
+                  Watch again · Lesson {q.lesson_index}{q.timestamp_sec != null ? ` at ${fmtTs(q.timestamp_sec)}` : ""}
+                </Text>
+              </PressableScale>
+            )}
           </Animated.View>
         )}
         </Animated.View>
@@ -252,6 +290,20 @@ const styles = StyleSheet.create({
   topTitle: { ...typography.titleMd, color: colors.text, flex: 1, textAlign: "center", marginHorizontal: spacing.sm },
   preparing: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
   preparingText: { ...typography.labelLg, color: colors.primary },
+  preparingSub: { ...typography.bodySm, color: colors.textSecondary, marginTop: -spacing.sm, marginBottom: spacing.md },
+  titlesNote: { ...typography.bodySm, color: colors.textSecondary, backgroundColor: colors.locked, borderRadius: radii.md, padding: spacing.sm },
+  watchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    alignSelf: "flex-start",
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.full,
+  },
+  watchText: { ...typography.labelMd, color: colors.primary },
   body: { padding: spacing.md, paddingBottom: spacing.xl },
   counter: { ...typography.labelMd, color: colors.textSecondary, marginTop: spacing.sm },
   question: { ...typography.headlineMd, color: colors.text, marginTop: spacing.sm, marginBottom: spacing.lg },

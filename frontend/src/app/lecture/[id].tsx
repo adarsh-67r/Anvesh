@@ -17,10 +17,11 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { api, logEvent } from "../../lib/api";
 import { youTubeId, youTubeThumb } from "../../lib/youtube";
+import { fmtTs, rangeLabel } from "../../lib/trails";
 import { VideoPlayer } from "../../components/VideoPlayer";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
-type Lesson = { id: string; title: string; url: string };
+type Lesson = { id: string; title: string; url: string; start_sec: number | null; end_sec: number | null };
 type Detail = {
   id: string;
   title: string;
@@ -33,13 +34,17 @@ type Detail = {
   description: string | null;
   duration: number | null;
   lessons: Lesson[];
+  youtube_id: string | null;
+  start_sec: number | null;
+  end_sec: number | null;
+  concepts: { concept: string; explanation: string; timestamp_sec: number | null }[];
 };
 
 const fmtDuration = (s: number | null) =>
   s ? (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)} min`) : null;
 
 export default function LectureScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, t } = useLocalSearchParams<{ id: string; t?: string }>();
   const { width } = useWindowDimensions();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState(false);
@@ -54,7 +59,7 @@ export default function LectureScreen() {
   }, [id]);
 
   const playerWidth = Math.min(width, 900);
-  const ytId = detail ? youTubeId(detail.url) : null;
+  const ytId = detail ? detail.youtube_id ?? youTubeId(detail.url) : null;
   const pos = detail ? detail.lessons.findIndex((l) => l.id === detail.id) : -1;
   const upNext = detail ? detail.lessons.slice(pos + 1) : [];
 
@@ -69,7 +74,13 @@ export default function LectureScreen() {
 
       <View style={[styles.player, { height: Math.round((playerWidth * 9) / 16) }]}>
         {ytId ? (
-          <VideoPlayer key={ytId} videoId={ytId} width={playerWidth} />
+          <VideoPlayer
+            key={`${ytId}-${t ?? ""}`}
+            videoId={ytId}
+            width={playerWidth}
+            start={t ? Number(t) : detail?.start_sec ?? undefined}
+            end={detail?.end_sec ?? undefined}
+          />
         ) : detail ? (
           <TouchableOpacity style={styles.externalBtn} onPress={() => Linking.openURL(detail.url)}>
             <MaterialIcons name="open-in-new" size={22} color="#FFFFFF" />
@@ -97,7 +108,9 @@ export default function LectureScreen() {
             <Text style={styles.meta}>
               {detail.index ? `Lesson ${detail.index} of ${detail.total}` : "Lesson"}
               {detail.channel ? ` · ${detail.channel}` : ""}
-              {fmtDuration(detail.duration) ? ` · ${fmtDuration(detail.duration)}` : ""}
+              {rangeLabel(detail.start_sec, detail.end_sec)
+                ? ` · ${rangeLabel(detail.start_sec, detail.end_sec)}`
+                : fmtDuration(detail.duration) ? ` · ${fmtDuration(detail.duration)}` : ""}
             </Text>
 
             <View style={styles.actions}>
@@ -130,6 +143,32 @@ export default function LectureScreen() {
                 </TouchableOpacity>
               )}
             </View>
+
+            {detail.concepts.length > 0 && (
+              <View style={styles.descBox}>
+                <Text style={styles.descHeading}>Key concepts</Text>
+                {detail.concepts.map((c, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    disabled={c.timestamp_sec == null}
+                    onPress={() => router.replace(`/lecture/${detail.id}?t=${c.timestamp_sec}`)}
+                    style={{ marginTop: spacing.sm }}
+                  >
+                    <Text style={styles.conceptTitle}>{c.concept}{c.timestamp_sec != null ? `  · ${fmtTs(c.timestamp_sec)}` : ""}</Text>
+                    <Text style={styles.desc}>{c.explanation}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <PressableScale style={styles.checkCard} onPress={() => router.push(`/practice/${detail.skill_id}?lesson=${detail.id}`)} scaleTo={0.98}>
+              <MaterialIcons name="fact-check" size={24} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.conceptTitle}>Check your understanding</Text>
+                <Text style={styles.desc}>A few quick questions on this lesson</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+            </PressableScale>
 
             {upNext.length > 0 && (
               <>
@@ -201,6 +240,16 @@ const styles = StyleSheet.create({
   descHeading: { ...typography.labelLg, color: colors.text, marginBottom: spacing.xs },
   desc: { ...typography.bodyMd, color: colors.textSecondary },
   more: { ...typography.labelLg, color: colors.primary, marginTop: spacing.sm },
+  conceptTitle: { ...typography.titleMd, color: colors.text },
+  checkCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
   sectionTitle: { ...typography.headlineSm, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm },
   lessonRow: { flexDirection: "row", gap: spacing.md, alignItems: "center", marginBottom: spacing.sm },
   lessonThumb: { width: 128, height: 72, borderRadius: radii.lg, backgroundColor: colors.locked },

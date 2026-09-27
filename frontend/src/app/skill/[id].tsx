@@ -17,11 +17,27 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { api, StudyStatus } from "../../lib/api";
 import { youTubeId, youTubeThumb } from "../../lib/youtube";
+import { fmtTs, rangeLabel } from "../../lib/trails";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type MasteryInfo = { skill_id: string; mastery_score: number; phase: "ema" | "bkt" | "irt" };
-type Video = { id: string; title: string; url: string; display_order: number };
-type GraphNode = { id: string; label: string; prerequisites: string[]; status: "mastered" | "available" | "locked" };
+type Video = { id: string; title: string; url: string; display_order: number; start_sec: number | null; end_sec: number | null };
+type GraphNode = {
+  id: string;
+  label: string;
+  prerequisites: string[];
+  status: "mastered" | "covered" | "available" | "locked";
+  summary: string | null;
+  trail_title: string;
+  equivalents: { id: string; label: string; trail_title: string; source_title: string | null }[];
+};
+type Notes = {
+  status: string;
+  summary: string | null;
+  method: string | null;
+  concepts: { concept: string; explanation: string; lesson_id: string | null; timestamp_sec: number | null }[];
+};
+const CONCEPTS_SHOWN = 6;
 
 const MODEL_NAMES = { ema: "rule-based EMA", bkt: "Bayesian Knowledge Tracing", irt: "Item Response Theory" };
 const LESSONS_SHOWN = 5;
@@ -57,15 +73,19 @@ export default function SkillScreen() {
   const [showAddVideo, setShowAddVideo] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
+  const [notes, setNotes] = useState<Notes | null>(null);
+  const [allConcepts, setAllConcepts] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [m, v, g, s] = await Promise.all([
+    const [m, v, g, s, n] = await Promise.all([
       api.get<MasteryInfo>(`/api/recommend/mastery/${id}`).catch(() => null),
       api.get<Video[]>(`/api/recommend/videos/${id}`).catch(() => []),
       api.get<GraphNode[]>("/api/recommend/graph").catch(() => []),
       api.get<StudyStatus>("/api/game/status").catch(() => null),
+      api.get<Notes>(`/api/topics/${id}/notes`).catch(() => null),
     ]);
+    setNotes(n);
     setMastery(m);
     setVideos(v);
     setGraph(g);
@@ -79,7 +99,8 @@ export default function SkillScreen() {
   const node = graph.find((n) => n.id === id);
   const label = node?.label ?? "Skill";
   const labelOf = (sid: string) => graph.find((n) => n.id === sid)?.label ?? sid;
-  const unmet = (node?.prerequisites ?? []).filter((p) => graph.find((n) => n.id === p)?.status !== "mastered");
+  const unmet = (node?.prerequisites ?? []).filter((p) => !["mastered", "covered"].includes(graph.find((n) => n.id === p)?.status ?? ""));
+  const equivalent = node?.equivalents[0];
   const mastered = node?.status === "mastered";
   const lessons = showAll ? videos : videos.slice(0, LESSONS_SHOWN);
 
@@ -116,7 +137,7 @@ export default function SkillScreen() {
         </TouchableOpacity>
         <Text style={styles.topTitle} numberOfLines={1}>{label}</Text>
         <TouchableOpacity
-          onPress={() => router.push({ pathname: "/chat", params: { label } })}
+          onPress={() => router.push({ pathname: "/chat", params: { label, topic: id } })}
           accessibilityLabel="Ask the AI tutor about this skill"
           hitSlop={8}
         >
@@ -146,7 +167,9 @@ export default function SkillScreen() {
         <Animated.View entering={enter(0)} style={styles.masteryCard}>
           <View style={styles.masteryRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.masteryLabel}>{mastered ? "Mastered" : pct >= 50 ? "In progress" : "Getting started"}</Text>
+              <Text style={styles.masteryLabel}>
+                {mastered ? "Mastered" : node?.status === "covered" && equivalent ? `Covered by ${equivalent.label}` : pct >= 50 ? "In progress" : "Getting started"}
+              </Text>
               <Text style={styles.masteryModel}>
                 Tracked by {MODEL_NAMES[mastery?.phase ?? "ema"]}
               </Text>
@@ -155,6 +178,52 @@ export default function SkillScreen() {
           </View>
           <ProgressBar value={pct / 100} height={8} delay={150} color={mastered ? colors.tertiary : colors.primary} style={{ marginTop: spacing.sm }} />
         </Animated.View>
+
+        {equivalent && !mastered && (
+          <Animated.View entering={enter(1)} style={styles.equivBanner}>
+            <MaterialIcons name="link" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.equivText}>Also in {equivalent.label}</Text>
+              <Text style={styles.muted}>{equivalent.source_title ?? equivalent.trail_title}</Text>
+            </View>
+            <PressableScale style={styles.testOutBtn} onPress={() => router.push(`/practice/${id}?mode=testout`)}>
+              <Text style={styles.testOutText}>Test out · 5 questions</Text>
+            </PressableScale>
+          </Animated.View>
+        )}
+
+        {notes?.status === "ready" ? (
+          <Animated.View entering={enter(1)} style={styles.notesCard}>
+            <View style={styles.notesHead}>
+              <Text style={styles.sectionTitle}>Key concepts</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{notes.method === "titles" ? "From lesson titles" : "From the lectures"}</Text>
+              </View>
+            </View>
+            {notes.summary ? <Text style={styles.notesSummary}>{notes.summary}</Text> : null}
+            {(allConcepts ? notes.concepts : notes.concepts.slice(0, CONCEPTS_SHOWN)).map((c, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.concept}
+                disabled={!c.lesson_id}
+                onPress={() => router.push(`/lecture/${c.lesson_id}${c.timestamp_sec != null ? `?t=${c.timestamp_sec}` : ""}`)}
+              >
+                <Text style={styles.conceptTitle}>
+                  {c.concept}
+                  {c.timestamp_sec != null ? <Text style={styles.conceptTs}>{`  · ${fmtTs(c.timestamp_sec)}`}</Text> : null}
+                </Text>
+                <Text style={styles.muted}>{c.explanation}</Text>
+              </TouchableOpacity>
+            ))}
+            {notes.concepts.length > CONCEPTS_SHOWN && (
+              <TouchableOpacity onPress={() => setAllConcepts((s) => !s)} style={styles.linkBtn}>
+                <Text style={styles.linkText}>{allConcepts ? "Show fewer" : `Show all ${notes.concepts.length}`}</Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
+        ) : (
+          <Text style={[styles.muted, { marginBottom: spacing.md }]}>Key concepts appear after your first practice.</Text>
+        )}
 
         {unmet.length > 0 && (
           <View style={styles.lockBanner}>
@@ -182,7 +251,9 @@ export default function SkillScreen() {
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.lessonIndex}>Lesson {i + 1}</Text>
+                  <Text style={styles.lessonIndex}>
+                    Lesson {i + 1}{rangeLabel(v.start_sec, v.end_sec) ? ` · ${rangeLabel(v.start_sec, v.end_sec)}` : ""}
+                  </Text>
                   <Text style={styles.lessonTitle} numberOfLines={2}>{v.title}</Text>
                 </View>
               </PressableScale>
@@ -271,7 +342,7 @@ export default function SkillScreen() {
           <View style={styles.chips}>
             {(node?.prerequisites ?? []).length === 0 && <Text style={styles.muted}>None. This skill is available right away.</Text>}
             {(node?.prerequisites ?? []).map((p) => {
-              const done = graph.find((n) => n.id === p)?.status === "mastered";
+              const done = ["mastered", "covered"].includes(graph.find((n) => n.id === p)?.status ?? "");
               return (
                 <TouchableOpacity key={p} style={styles.chip} onPress={() => router.push(`/skill/${p}`)}>
                   <MaterialIcons name={done ? "check-circle" : "radio-button-unchecked"} size={16} color={done ? colors.tertiary : colors.textMuted} />
@@ -318,6 +389,33 @@ export default function SkillScreen() {
 }
 
 const styles = StyleSheet.create({
+  equivBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  equivText: { ...typography.titleMd, color: colors.text },
+  testOutBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radii.full },
+  testOutText: { ...typography.labelMd, color: "#FFFFFF" },
+  notesCard: {
+    backgroundColor: colors.surfaceWhite,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  notesHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  badge: { backgroundColor: colors.tertiaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.full },
+  badgeText: { ...typography.labelSm, color: colors.tertiaryDark },
+  notesSummary: { ...typography.bodyMd, color: colors.textSecondary, marginTop: spacing.sm },
+  concept: { marginTop: spacing.sm },
+  conceptTitle: { ...typography.titleMd, color: colors.text },
+  conceptTs: { ...typography.labelMd, color: colors.primary },
   container: { flex: 1, backgroundColor: colors.surface },
   topBar: {
     flexDirection: "row",

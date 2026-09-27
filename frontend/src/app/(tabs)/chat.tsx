@@ -46,7 +46,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const { label: skillLabel } = useLocalSearchParams<{ label?: string }>();
+  const { label: skillLabel, topic } = useLocalSearchParams<{ label?: string; topic?: string }>();
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -135,7 +135,7 @@ export default function ChatScreen() {
       if (uploaded) {
         setMessages((prev) => prev.map((m) => (m === userMsg ? { ...m, attachment: uploaded } : m)));
       }
-      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id, skill_context: skillLabel || undefined });
+      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id, skill_context: skillLabel || undefined, topic_id: topic || undefined });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: res.reply, created_at: new Date().toISOString() },
