@@ -16,9 +16,10 @@ type Recommendation = {
   mastery_score: number;
   reason: string;
   prerequisites: string[];
+  trail_title: string;
   videos: { id: string; title: string; url: string }[];
 };
-type GraphNode = { id: string; label: string; status: "mastered" | "available" | "locked" };
+type GraphNode = { id: string; label: string; status: "mastered" | "covered" | "available" | "locked" };
 type Todo = { id: string; is_done: boolean };
 type DropoutRisk = { risk_score: number; risk_level: string };
 type IconName = ComponentProps<typeof MaterialIcons>["name"];
@@ -102,7 +103,7 @@ export default function TodayScreen() {
           <Animated.View entering={enter(0)} style={styles.hero}>
             <Drift style={[styles.blob, { width: 180, height: 180, top: -60, right: -50 }]} />
             <Drift style={[styles.blob, { width: 90, height: 90, bottom: -30, right: 70, opacity: 0.08 }]} range={20} duration={6500} />
-            <Text style={styles.heroEyebrow}>STUDY NEXT</Text>
+            <Text style={styles.heroEyebrow} numberOfLines={1}>{`${hero.trail_title.toUpperCase()} · STUDY NEXT`}</Text>
             <Text style={styles.heroTitle} numberOfLines={2}>{hero.label}</Text>
             <Text style={styles.heroWhy}>{whyThis(hero)}</Text>
             <ProgressBar value={hero.mastery_score} color="#FFFFFF" track="rgba(255,255,255,0.25)" delay={250} style={{ marginTop: spacing.sm }} />
@@ -124,14 +125,14 @@ export default function TodayScreen() {
           <Animated.View entering={enter(0)} style={[styles.hero, styles.heroEmpty]}>
             <Drift style={[styles.blob, { width: 180, height: 180, top: -60, right: -50 }]} />
             <MaterialIcons name={graph.length ? "emoji-events" : "playlist-add"} size={32} color="#FFFFFF" />
-            <Text style={styles.heroTitle}>{graph.length ? "Everything available is mastered" : "Add your first topic"}</Text>
+            <Text style={styles.heroTitle}>{graph.length ? "Everything available is mastered" : "Start your first trail"}</Text>
             <Text style={styles.heroWhy}>
               {graph.length
-                ? "Add a new topic or review your flashcards to stay sharp."
+                ? "Add a new trail or review your flashcards to stay sharp."
                 : "Paste a YouTube playlist and Anvesh builds your learning path."}
             </Text>
-            <PressableScale style={styles.heroBtn} onPress={() => router.push("/add-content")}>
-              <Text style={styles.heroBtnText}>Add topic</Text>
+            <PressableScale style={styles.heroBtn} onPress={() => router.push("/trail/new")}>
+              <Text style={styles.heroBtnText}>New trail</Text>
               <MaterialIcons name="add" size={18} color={colors.primary} />
             </PressableScale>
           </Animated.View>
@@ -183,7 +184,7 @@ export default function TodayScreen() {
 
         {/* Progress */}
         <Animated.View entering={enter(6)}>
-        <PressableScale style={styles.progressCard} onPress={() => router.push("/learn")} scaleTo={0.98}>
+        <PressableScale style={styles.progressCard} onPress={() => router.push("/trails")} scaleTo={0.98}>
           <View style={{ flex: 1 }}>
             <Text style={styles.progressTitle}>Your path</Text>
             <Text style={styles.progressMeta}>

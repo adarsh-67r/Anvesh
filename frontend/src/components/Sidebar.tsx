@@ -15,13 +15,12 @@ type IconName = ComponentProps<typeof MaterialIcons>["name"];
 
 const ITEMS: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Today", icon: "today" },
-  { href: "/learn", label: "My Path", icon: "account-tree" },
+  { href: "/trails", label: "Trails", icon: "route" },
   { href: "/cards", label: "Review", icon: "style" },
   { href: "/chat", label: "AI Tutor", icon: "smart-toy" },
   { href: "/pomodoro", label: "Focus Timer", icon: "timer" },
   { href: "/todos", label: "Tasks", icon: "checklist" },
   { href: "/profile", label: "Study Groups", icon: "groups" },
-  { href: "/add-content", label: "Add Topic", icon: "playlist-add" },
 ];
 
 const SidebarContext = createContext<{ open: () => void }>({ open: () => {} });
