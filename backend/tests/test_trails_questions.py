@@ -28,3 +28,23 @@ def test_seen_query_groups_by_the_selected_expression():
 
     sql = str(seen_query("u", "s").compile(dialect=postgresql.dialect()))
     assert "GROUP BY qid" in sql
+
+
+def test_lesson_check_falls_back_to_topic_questions(monkeypatch):
+    """A lesson no concept maps to (an intro) still gets a check, from the topic's bank."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.trails import questions
+
+    topic_q = SimpleNamespace(id="q1")
+    results = iter([[], [topic_q], []])  # lesson bank, topic bank, seen
+
+    class Db:
+        async def execute(self, _):
+            rows = next(results)
+            return SimpleNamespace(scalars=lambda: rows, all=lambda: rows)
+
+    monkeypatch.setattr(questions, "spawn", lambda coro: coro.close())
+    picked = asyncio.run(questions.pick_questions(Db(), "u", "t", 3, lesson_id="lesson-1"))
+    assert picked == [topic_q]

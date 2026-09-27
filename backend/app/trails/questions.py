@@ -80,6 +80,8 @@ async def pick_questions(db, user_id, skill_id: str, n: int = 5, lesson_id=None)
     if lesson_id:
         q = q.where(Question.lesson_id == lesson_id)
     bank = {x.id: x for x in (await db.execute(q)).scalars()}
+    if lesson_id and not bank:  # no concept maps to this lesson (e.g. an intro): check the topic instead
+        return await pick_questions(db, user_id, skill_id, n)
     seen_rows = (await db.execute(seen_query(user_id, skill_id))).all()
     last_seen = {qid: at for qid, at in seen_rows if qid in bank}
     if not lesson_id and len(bank) - len(last_seen) < n and len(bank) < BANK_CAP:
