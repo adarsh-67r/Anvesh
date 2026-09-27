@@ -1,10 +1,7 @@
-import hashlib
-import json
-import random
 from datetime import datetime, timedelta
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.llm import FAST, generate
-from app.models import GameSession, LearningEvent, Skill, User
+from app.models import GameSession, LearningEvent, SkillVideo, User
 from app.recommendation.orchestrator import record_answer
+from app.trails.grounding import ensure_notes
+from app.trails.questions import pick_questions, question_payload
+from app.trails.scope import require_topic
 
 router = APIRouter(prefix="/api/game", tags=["game"])
 
@@ -22,34 +21,6 @@ router = APIRouter(prefix="/api/game", tags=["game"])
 class SubmitAnswersRequest(BaseModel):
     session_id: str
     answers: list[dict]
-
-
-_quiz_cache: dict[str, list[dict]] = {}
-
-
-async def _generate_questions(skill_label: str) -> list[dict]:
-    """Generate quiz questions using Gemini."""
-    if skill_label in _quiz_cache:
-        return _quiz_cache[skill_label]
-
-    try:
-        prompt = (
-            f"A student is studying the topic '{skill_label}'. Generate 8 multiple choice questions that test "
-            f"understanding of the concepts this topic teaches (definitions, how things work, applying them to small "
-            f"examples). Do not ask trivia about the course, playlist, author, platform or number of lessons. "
-            f"Return ONLY a JSON array, each object with: "
-            f'"text" (question), "options" (4 strings), "answer" (the correct option string), '
-            f'"explanation" (one short sentence on why the answer is right). '
-            f"No markdown, no explanation, just the JSON array."
-        )
-        text = (await generate(prompt, FAST)).strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        questions = json.loads(text)
-        _quiz_cache[skill_label] = questions
-        return questions
-    except Exception:
-        return []
 
 
 async def _study_minutes_today(db: AsyncSession, user_id) -> int:
@@ -67,36 +38,27 @@ async def _study_minutes_today(db: AsyncSession, user_id) -> int:
     return sum(min(max(int((c or {}).get("minutes", 0) or 0), 0), 25) for c in rows)
 
 
-def _question_id(q: dict) -> str:
-    return hashlib.sha1(q.get("text", "").encode()).hexdigest()[:16]
+async def _ready_questions(db, user, skill_id: str, n: int, lesson_id=None):
+    """(questions, method) when the topic is grounded, else a 202 response to poll."""
+    topic = await require_topic(db, user.id, skill_id)
+    notes = await ensure_notes(db, skill_id)
+    if notes.status != "ready":
+        return None, JSONResponse(status_code=202, content={"status": notes.status, "progress": notes.progress})
+    questions = await pick_questions(db, user.id, skill_id, n, lesson_id)
+    if not questions:
+        raise HTTPException(status_code=503, detail="No questions for this yet. Try again shortly.")
+    ids = {q.lesson_id for q in questions if q.lesson_id}
+    lessons = {str(v.id): v for v in (await db.execute(select(SkillVideo).where(SkillVideo.id.in_(ids)))).scalars()} if ids else {}
+    return (topic, notes.method, [question_payload(q, lessons) for q in questions]), None
 
 
 @router.get("/practice/{skill_id}")
 async def practice(skill_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Low-stakes practice: not gated by study time, answers returned for instant feedback.
-
-    The app reports each answer to /api/recommend/answer with this question_id so mastery updates.
-    """
-    skill = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    questions = await _generate_questions(skill.label)
-    if not questions:
-        raise HTTPException(status_code=503, detail="Could not generate questions right now. Try again shortly.")
-    picked = random.sample(questions, min(5, len(questions)))
-    return {
-        "skill": {"id": skill.id, "label": skill.label},
-        "questions": [
-            {
-                "id": _question_id(q),
-                "text": q["text"],
-                "options": q["options"],
-                "answer": q["answer"],
-                "explanation": q.get("explanation"),
-            }
-            for q in picked
-        ],
-    }
+    ready, wait = await _ready_questions(db, user, skill_id, 5)
+    if wait:
+        return wait
+    topic, method, questions = ready
+    return {"skill": {"id": topic.id, "label": topic.label}, "method": method, "questions": questions}
 
 
 @router.get("/status")
@@ -115,15 +77,11 @@ async def get_quiz(skill_id: str, user: User = Depends(get_current_user), db: As
             detail=f"Quiz unlocks after {settings.game_unlock_minutes} minutes of focused study. "
                    f"You have {minutes} so far today.",
         )
-    skill = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill not found")
-
-    questions = await _generate_questions(skill.label)
-    if not questions:
-        raise HTTPException(status_code=404, detail="Could not generate questions")
-
-    selected = random.sample(questions, min(5, len(questions)))
+    ready, wait = await _ready_questions(db, user, skill_id, 5)
+    if wait:
+        return wait
+    topic, _, questions = ready
+    selected = [{"id": q["id"], "text": q["text"], "options": q["options"], "answer": q["answer"]} for q in questions]
 
     session = GameSession(user_id=user.id, skill_id=skill_id, total_questions=len(selected), questions=selected)
     db.add(session)
@@ -132,7 +90,7 @@ async def get_quiz(skill_id: str, user: User = Depends(get_current_user), db: As
 
     return {
         "session_id": str(session.id),
-        "skill": {"id": skill.id, "label": skill.label},
+        "skill": {"id": topic.id, "label": topic.label},
         "questions": [
             {"idx": i, "text": q["text"], "options": q["options"]}
             for i, q in enumerate(selected)
@@ -160,7 +118,7 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
         q = questions[idx]
         correct = ans.get("selected") == q.get("answer")
         score += correct
-        qid = _question_id(q)
+        qid = q.get("id")
         time_ms = ans.get("time_ms")
         await record_answer(db, str(user.id), session.skill_id, correct, question_id=qid,
                             response_time_ms=time_ms if isinstance(time_ms, int) and 0 < time_ms < 600000 else None)
