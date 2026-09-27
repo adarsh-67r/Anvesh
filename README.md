@@ -31,6 +31,13 @@ India's education system serves 250M+ students with one-size-fits-all teaching. 
 
 A unified adaptive learning platform where every feature is connected to a single intelligence layer:
 
+0. **Trails — learn from any YouTube playlist (`backend/app/trails/`):**
+   - Paste a playlist or video link. Gemini splits it into topics with prerequisites; long videos are split at their YouTube chapters.
+   - Put several playlists in one trail (e.g. Striver + Luv for DSA). Overlapping topics are linked, so mastering one marks the other **Covered**, and recommendations never show both.
+   - Every topic is **grounded in its lectures**: captions first, Gemini watching the video when captions are unavailable, lesson titles as the last resort. This produces key concepts with timestamps.
+   - Practice, quizzes and per-lesson checks come from a question bank built from those concepts. A wrong answer offers **Watch again**, which opens the lecture at the moment the concept is taught.
+   - Topic plans are shared and versioned: the second student to import a playlist reuses the first student's topics instantly. Rebuilding a source never changes another student's topics.
+
 1. **Adaptive Recommendation Engine (`backend/app/recommendation/`):**
    - **Knowledge Graph DAG:** Skills organized as a prerequisite tree. The system always recommends the deepest skill whose prerequisites are mastered — mathematically optimal learning path.
    - **Phase 0 — EMA Mastery:** `mastery(t) = 0.3 × correct(t) + 0.7 × mastery(t-1)`. Works from Day 1 with zero prior data. Mastery declared at ≥0.75 for 3 consecutive attempts.
@@ -244,7 +251,7 @@ SM-2 spaced repetition (Wozniak 1994) is integrated directly into the learning f
 
 ## Knowledge Graph
 
-The recommendation engine works on a skill prerequisite graph: a skill is recommended only once all its prerequisites are mastered. In the app, skills come from YouTube playlists and prerequisites are set on each skill's screen (cycles are rejected). Example graph for 8th grade mathematics (18 skills), shown for a student who has mastered the first three:
+The recommendation engine works on a skill prerequisite graph: a skill is recommended only once all its prerequisites are mastered. In the app, skills are the topics of a student's trails: Gemini proposes the prerequisites when a playlist is imported, and students can edit them on each topic's screen (cycles are rejected). Example graph for 8th grade mathematics (18 skills), shown for a student who has mastered the first three:
 
 ```mermaid
 flowchart TD
@@ -345,9 +352,8 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 cd frontend
 npm install
-cp .env.local.example .env.local
-# Set NEXT_PUBLIC_API_URL=http://localhost:8000
-npm run dev
+# API defaults to http://localhost:8000; set EXPO_PUBLIC_API_URL to point elsewhere
+npx expo start
 ```
 
 ### 4. Demo Credentials
@@ -379,7 +385,9 @@ Anvesh/
 │   │   ├── chatbot.py                    # Google Gemini AI tutor + persistent history
 │   │   ├── flashcards.py                 # CRUD + SM-2 spaced repetition
 │   │   ├── todos.py                      # Smart todos + carry-forward + suggestions
-│   │   ├── videos.py                     # User-contributed YouTube URLs per skill
+│   │   ├── trails/                       # Trails: import, topic plans, overlap, grounding, question bank
+│   │   ├── llm.py                        # Gemini calls with model fallback
+│   │   ├── videos.py                     # Lesson detail + student-added videos
 │   │   ├── study_groups.py               # Groups, invite codes, shared decks
 │   │   ├── game.py                       # Quiz game (unlocks after study time)
 │   │   ├── models.py                     # 14 SQLAlchemy models
@@ -421,7 +429,20 @@ Anvesh/
 | GET | `/api/recommend/mastery/{skill_id}` | Single skill mastery + active phase |
 | GET | `/api/recommend/graph` | Full knowledge graph with node statuses |
 | GET | `/api/recommend/dropout-risk` | Current dropout risk score |
-| GET | `/api/recommend/videos/{skill_id}` | Videos for a skill |
+| GET | `/api/recommend/videos/{skill_id}` | Lessons for a topic |
+
+### Trails
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/trails` | My trails with progress and next topic |
+| POST | `/api/trails` | Create a trail from a playlist or video link |
+| GET | `/api/trails/{id}` | Trail map: topics, statuses, sources |
+| DELETE | `/api/trails/{id}` | Delete a trail |
+| POST | `/api/trails/{id}/sources` | Add another playlist to a trail |
+| POST | `/api/trails/{id}/sources/{sid}/retry` | Retry a failed import |
+| POST | `/api/trails/{id}/sources/{sid}/rebuild` | Rebuild a source's topics |
+| GET | `/api/topics/{id}/notes` | Grounded key concepts (`?prepare=true` starts grounding) |
+| GET | `/api/topics/{id}/lessons/{lid}/check` | Quick check questions for one lesson |
 
 ### Chatbot
 | Method | Endpoint | Description |
@@ -452,9 +473,8 @@ Anvesh/
 ### Videos
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| GET | `/api/videos/{skill_id}` | Get videos for a skill |
-| POST | `/api/videos` | Add a YouTube video to a skill |
-| POST | `/api/videos/bulk` | Add multiple videos at once |
+| GET | `/api/videos/detail/{video_id}` | Lesson detail: range, concepts, neighbours |
+| POST | `/api/videos` | Add a YouTube video to a topic |
 | DELETE | `/api/videos/{video_id}` | Remove a video |
 
 ### Study Groups
@@ -469,6 +489,7 @@ Anvesh/
 ### Game
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
+| GET | `/api/game/practice/{skill_id}` | 5 practice questions (202 while the topic is being grounded) |
 | GET | `/api/game/quiz/{skill_id}` | Get quiz questions |
 | POST | `/api/game/submit` | Submit answers → score |
 
