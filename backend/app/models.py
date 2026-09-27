@@ -55,6 +55,10 @@ class Skill(Base):
     depth: Mapped[int] = mapped_column(Integer, default=0)
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     prerequisites: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    source_ref: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    plan_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -63,7 +67,11 @@ class SkillVideo(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     skill_id: Mapped[str] = mapped_column(String(100), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    youtube_id: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    start_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     title: Mapped[str] = mapped_column(String(500))
     url: Mapped[str] = mapped_column(String(1000))
     display_order: Mapped[int] = mapped_column(Integer, default=0)
@@ -175,3 +183,85 @@ class GroupMessage(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     attachment_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("attachments.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class Trail(Base):
+    __tablename__ = "trails"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    trail_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("trails.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    url: Mapped[str] = mapped_column(String(1000))
+    source_ref: Mapped[str] = mapped_column(String(64), index=True)
+    plan_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    title: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    status: Mapped[str] = mapped_column(String(12), default="importing", server_default="importing")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class TopicPlan(Base):
+    __tablename__ = "topic_plans"
+
+    source_ref: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    method: Mapped[str] = mapped_column(String(10))
+    title: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class TrailTopic(Base):
+    __tablename__ = "trail_topics"
+
+    trail_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("trails.id", ondelete="CASCADE"), primary_key=True)
+    skill_id: Mapped[str] = mapped_column(ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    prerequisites_override: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    equivalent_to: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+
+
+class VideoContext(Base):
+    __tablename__ = "video_context"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)  # "{youtube_id}:{start}:{end}", 0:0 = whole video
+    youtube_id: Mapped[str] = mapped_column(String(20), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    method: Mapped[str] = mapped_column(String(10))
+    seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # video seconds Gemini watched
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class TopicNotes(Base):
+    __tablename__ = "topic_notes"
+
+    skill_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    status: Mapped[str] = mapped_column(String(12))
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    concepts: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    method: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    progress: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Question(Base):
+    __tablename__ = "questions"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    skill_id: Mapped[str] = mapped_column(String(100), index=True)
+    lesson_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    concept: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    text: Mapped[str] = mapped_column(Text)
+    options: Mapped[list[str]] = mapped_column(JSON)
+    answer: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timestamp_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
