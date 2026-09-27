@@ -4,7 +4,7 @@ import hashlib
 import random
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 
 from app.database import async_session
 from app.llm import FAST, generate, parse_json
@@ -64,16 +64,22 @@ async def _top_up(skill_id: str):
             await generate_questions(db, skill_id, notes.concepts, TOP_UP, avoid=texts[-40:])
 
 
+def seen_query(user_id, skill_id: str):
+    """Last time this student answered each question of the topic."""
+    qid = LearningEvent.context["question_id"].as_string().label("qid")
+    return (
+        select(qid, func.max(LearningEvent.created_at))
+        .where(LearningEvent.user_id == user_id, LearningEvent.skill_id == skill_id, LearningEvent.event_type == "answer")
+        .group_by(literal_column("qid"))
+    )
+
+
 async def pick_questions(db, user_id, skill_id: str, n: int = 5, lesson_id=None) -> list[Question]:
     q = select(Question).where(Question.skill_id == skill_id)
     if lesson_id:
         q = q.where(Question.lesson_id == lesson_id)
     bank = {x.id: x for x in (await db.execute(q)).scalars()}
-    seen_rows = (await db.execute(
-        select(LearningEvent.context["question_id"].as_string(), func.max(LearningEvent.created_at))
-        .where(LearningEvent.user_id == user_id, LearningEvent.skill_id == skill_id, LearningEvent.event_type == "answer")
-        .group_by(LearningEvent.context["question_id"].as_string())
-    )).all()
+    seen_rows = (await db.execute(seen_query(user_id, skill_id))).all()
     last_seen = {qid: at for qid, at in seen_rows if qid in bank}
     if not lesson_id and len(bank) - len(last_seen) < n and len(bank) < BANK_CAP:
         spawn(_top_up(skill_id))

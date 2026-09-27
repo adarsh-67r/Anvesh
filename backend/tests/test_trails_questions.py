@@ -19,3 +19,12 @@ def test_unseen_first_then_least_recent():
 
 def test_order_limits_to_n():
     assert len(order_for_user([f"q{i}" for i in range(20)], {}, 5, random.Random(1))) == 5
+
+
+def test_seen_query_groups_by_the_selected_expression():
+    from sqlalchemy.dialects import postgresql
+
+    from app.trails.questions import seen_query
+
+    sql = str(seen_query("u", "s").compile(dialect=postgresql.dialect()))
+    assert "GROUP BY qid" in sql
