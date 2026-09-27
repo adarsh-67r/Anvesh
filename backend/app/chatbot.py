@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.attachments import AI_TYPES, MAX_BYTES, can_access
 from app.database import get_db
 from app.deps import get_current_user
-from app.llm import generate
+from app.llm import FAST, generate
 from app.models import Attachment, ChatMessage, User
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -98,7 +98,7 @@ async def transcribe(file: UploadFile = File(...), user: User = Depends(get_curr
             genai.types.Part.from_bytes(data=data, mime_type=mime),
             "Transcribe this student's spoken question exactly, in the language spoken. "
             "Return only the transcript. If there is no speech, return an empty string.",
-        ])
+        ], FAST)
     except errors.APIError:
         raise HTTPException(status_code=503, detail="Voice input is busy, please try again in a moment.")
     return {"text": text.strip()}

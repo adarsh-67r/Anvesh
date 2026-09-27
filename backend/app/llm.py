@@ -9,6 +9,10 @@ from app.config import settings
 ATTEMPTS = ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"]
 
 
+# Structured tasks (quiz JSON, transcription) don't need reasoning; thinking made them ~6x slower.
+FAST = genai.types.GenerateContentConfig(thinking_config=genai.types.ThinkingConfig(thinking_budget=0))
+
+
 async def generate(contents, config=None) -> str:
     client = genai.Client(api_key=settings.gemini_api_key)
     for i, model in enumerate(ATTEMPTS):

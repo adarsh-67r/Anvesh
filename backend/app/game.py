@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.llm import generate
+from app.llm import FAST, generate
 from app.models import GameSession, LearningEvent, Skill, User
 from app.recommendation.orchestrator import record_answer
 
@@ -34,12 +34,15 @@ async def _generate_questions(skill_label: str) -> list[dict]:
 
     try:
         prompt = (
-            f"Generate 5 multiple choice questions about '{skill_label}'. "
+            f"A student is studying the topic '{skill_label}'. Generate 8 multiple choice questions that test "
+            f"understanding of the concepts this topic teaches (definitions, how things work, applying them to small "
+            f"examples). Do not ask trivia about the course, playlist, author, platform or number of lessons. "
             f"Return ONLY a JSON array, each object with: "
-            f'"text" (question), "options" (4 strings), "answer" (the correct option string). '
+            f'"text" (question), "options" (4 strings), "answer" (the correct option string), '
+            f'"explanation" (one short sentence on why the answer is right). '
             f"No markdown, no explanation, just the JSON array."
         )
-        text = (await generate(prompt)).strip()
+        text = (await generate(prompt, FAST)).strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         questions = json.loads(text)
@@ -62,6 +65,38 @@ async def _study_minutes_today(db: AsyncSession, user_id) -> int:
     ).scalars().all()
     # ponytail: minutes are client-reported (capped at one 25-minute pomodoro each); verify server-side timing if it matters
     return sum(min(max(int((c or {}).get("minutes", 0) or 0), 0), 25) for c in rows)
+
+
+def _question_id(q: dict) -> str:
+    return hashlib.sha1(q.get("text", "").encode()).hexdigest()[:16]
+
+
+@router.get("/practice/{skill_id}")
+async def practice(skill_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Low-stakes practice: not gated by study time, answers returned for instant feedback.
+
+    The app reports each answer to /api/recommend/answer with this question_id so mastery updates.
+    """
+    skill = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    questions = await _generate_questions(skill.label)
+    if not questions:
+        raise HTTPException(status_code=503, detail="Could not generate questions right now. Try again shortly.")
+    picked = random.sample(questions, min(5, len(questions)))
+    return {
+        "skill": {"id": skill.id, "label": skill.label},
+        "questions": [
+            {
+                "id": _question_id(q),
+                "text": q["text"],
+                "options": q["options"],
+                "answer": q["answer"],
+                "explanation": q.get("explanation"),
+            }
+            for q in picked
+        ],
+    }
 
 
 @router.get("/status")
@@ -125,7 +160,7 @@ async def submit_answers(body: SubmitAnswersRequest, user: User = Depends(get_cu
         q = questions[idx]
         correct = ans.get("selected") == q.get("answer")
         score += correct
-        qid = hashlib.sha1(q.get("text", "").encode()).hexdigest()[:16]
+        qid = _question_id(q)
         time_ms = ans.get("time_ms")
         await record_answer(db, str(user.id), session.skill_id, correct, question_id=qid,
                             response_time_ms=time_ms if isinstance(time_ms, int) and 0 < time_ms < 600000 else None)
