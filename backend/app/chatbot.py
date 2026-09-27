@@ -11,7 +11,9 @@ from app.attachments import AI_TYPES, MAX_BYTES, can_access
 from app.database import get_db
 from app.deps import get_current_user
 from app.llm import FAST, generate
-from app.models import Attachment, ChatMessage, User
+from app.models import Attachment, ChatMessage, TopicNotes, User
+from app.trails.captions import fmt_ts
+from app.trails.scope import user_skills
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -26,6 +28,7 @@ SYSTEM_PROMPT = (
 class ChatRequest(BaseModel):
     message: str = ""
     skill_context: str | None = None
+    topic_id: str | None = None
     attachment_id: UUID | None = None
 
 
@@ -66,6 +69,19 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user), db: As
     system_text = SYSTEM_PROMPT
     if body.skill_context:
         system_text += f"\n\nThe student is currently studying: {body.skill_context}"
+    if body.topic_id:
+        topic = next((t for t in await user_skills(db, user.id) if t.id == body.topic_id), None)
+        notes = await db.get(TopicNotes, body.topic_id) if topic else None
+        if topic and notes and notes.status == "ready":
+            lines = "\n".join(
+                f"- {c['concept']}: {c['explanation']}" + (f" (at {fmt_ts(c['timestamp_sec'])})" if c.get("timestamp_sec") is not None else "")
+                for c in notes.concepts or []
+            )
+            system_text += (
+                f"\n\nThe student is studying the topic '{topic.label}' from their trail '{topic.trail_title}'. "
+                f"Its lectures teach:\n{notes.summary}\n{lines}\n"
+                "Answer from these lectures where possible and point the student to the moment in the lecture that covers it."
+            )
 
     try:
         reply = await generate(contents, genai.types.GenerateContentConfig(system_instruction=system_text))

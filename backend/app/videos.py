@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Skill, SkillVideo, User
+from app.models import Skill, SkillVideo, TopicNotes, User
+from app.recommendation.router import visible_lessons
 from app.trails.scope import require_topic
 from app.trails.youtube import parse_ref
 
@@ -47,16 +48,15 @@ def _extract_video(url: str) -> dict:
 
 
 @router.get("/detail/{video_id}")
-async def video_detail(video_id: UUID, db: AsyncSession = Depends(get_db)):
+async def video_detail(video_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     video = await db.get(SkillVideo, video_id)
-    if not video:
+    if not video or video.user_id not in (None, user.id):
         raise HTTPException(status_code=404, detail="Video not found")
+    await require_topic(db, user.id, video.skill_id)
     skill = await db.get(Skill, video.skill_id)
-    lessons = (
-        await db.execute(
-            select(SkillVideo).where(SkillVideo.skill_id == video.skill_id).order_by(SkillVideo.display_order)
-        )
-    ).scalars().all()
+    lessons = (await db.execute(visible_lessons(video.skill_id, user.id))).scalars().all()
+    notes = await db.get(TopicNotes, video.skill_id)
+    concepts = [c for c in (notes.concepts or []) if c.get("lesson_id") == str(video.id)] if notes and notes.status == "ready" else []
 
     if video.url not in _detail_cache:
         loop = asyncio.get_running_loop()
@@ -72,7 +72,13 @@ async def video_detail(video_id: UUID, db: AsyncSession = Depends(get_db)):
         "index": ids.index(video.id) + 1 if video.id in ids else None,
         "total": len(lessons),
         **_detail_cache[video.url],
-        "lessons": [{"id": str(l.id), "title": l.title, "url": l.url} for l in lessons],
+        "youtube_id": video.youtube_id,
+        "start_sec": video.start_sec,
+        "end_sec": video.end_sec,
+        "concepts": concepts,
+        "lessons": [
+            {"id": str(l.id), "title": l.title, "url": l.url, "start_sec": l.start_sec, "end_sec": l.end_sec} for l in lessons
+        ],
     }
 
 
