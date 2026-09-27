@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import Animated, { FadeIn, FadeInDown, FadeInUp, SlideInRight, SlideOutLeft, ZoomIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { api } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
+import { AnswerFx, Confetti, CountUp, PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
+import { feedback } from "../../lib/feedback";
 
 type Question = { id: string; text: string; options: string[]; answer: string; explanation: string | null };
 type Practice = { skill: { id: string; label: string }; questions: Question[] };
@@ -57,6 +60,7 @@ export default function PracticeScreen() {
     setPicked(option);
     const correct = option === q.answer;
     if (correct) setCorrectCount((n) => n + 1);
+    if (correct) feedback.correct(); else feedback.wrong();
     try {
       const res = await api.post<AnswerResult>("/api/recommend/answer", {
         skill_id: skillId,
@@ -77,6 +81,8 @@ export default function PracticeScreen() {
       return;
     }
     setDone(true);
+    const final = correctCount / data.questions.length;
+    if (final >= 0.7 || mastery?.is_mastered) feedback.celebrate();
     const recs = await api.get<Rec[]>("/api/recommend/next?limit=3").catch(() => []);
     setNext(recs.find((r) => r.skill_id !== skillId) ?? null);
   };
@@ -110,9 +116,14 @@ export default function PracticeScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         {header}
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.centerText}>Preparing questions…</Text>
+        <View style={styles.body} accessibilityLabel="Preparing questions">
+          <Animated.View entering={FadeIn} style={styles.preparing}>
+            <MaterialIcons name="auto-awesome" size={18} color={colors.primary} />
+            <Text style={styles.preparingText}>Preparing questions for you…</Text>
+          </Animated.View>
+          <Skeleton height={22} width="85%" />
+          <Skeleton height={22} width="60%" style={{ marginBottom: spacing.md }} />
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} height={56} radius={radii.lg} style={{ marginBottom: spacing.sm }} />)}
         </View>
       </SafeAreaView>
     );
@@ -122,42 +133,53 @@ export default function PracticeScreen() {
     const total = data.questions.length;
     const after = mastery?.mastery_score ?? startMastery;
     const delta = pct(after) - pct(startMastery);
+    const great = correctCount / total >= 0.7 || !!mastery?.is_mastered;
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         {header}
         <ScrollView contentContainerStyle={styles.summary}>
-          <MaterialIcons
-            name={correctCount / total >= 0.7 ? "emoji-events" : "trending-up"}
-            size={56}
-            color={correctCount / total >= 0.7 ? colors.tertiary : colors.primary}
-          />
-          <Text style={styles.summaryScore}>{correctCount} / {total} correct</Text>
-          <View style={styles.masteryRow}>
-            <Text style={styles.masteryFrom}>{pct(startMastery)}%</Text>
-            <MaterialIcons name="arrow-forward" size={20} color={colors.textSecondary} />
-            <Text style={styles.masteryTo}>{pct(after)}%</Text>
-            <Text style={[styles.delta, { color: delta >= 0 ? colors.tertiaryDark : colors.error }]}>
-              {delta >= 0 ? `+${delta}` : delta}
-            </Text>
-          </View>
-          <Text style={styles.centerText}>
+          <Animated.View entering={ZoomIn.springify().damping(9)} style={[styles.trophy, { backgroundColor: great ? colors.tertiaryLight : colors.primaryLight }]}>
+            <MaterialIcons name={great ? "emoji-events" : "trending-up"} size={56} color={great ? colors.tertiary : colors.primary} />
+          </Animated.View>
+          <Animated.Text entering={FadeInDown.delay(150)} style={styles.summaryScore}>{correctCount} / {total} correct</Animated.Text>
+
+          <Animated.View entering={FadeInDown.delay(300)} style={styles.masteryCard}>
+            <Text style={styles.masteryCaption}>MASTERY</Text>
+            <View style={styles.masteryRow}>
+              <Text style={styles.masteryFrom}>{pct(startMastery)}%</Text>
+              <MaterialIcons name="arrow-forward" size={20} color={colors.textSecondary} />
+              <CountUp from={pct(startMastery)} to={pct(after)} delay={600} duration={1200} format={(n) => `${Math.round(n)}%`} style={styles.masteryTo} />
+              <Animated.View entering={ZoomIn.delay(1700).springify()} style={[styles.deltaPill, { backgroundColor: delta >= 0 ? colors.tertiaryLight : colors.errorLight }]}>
+                <Text style={[styles.delta, { color: delta >= 0 ? colors.tertiaryDark : colors.error }]}>
+                  {delta >= 0 ? `+${delta}` : delta}
+                </Text>
+              </Animated.View>
+            </View>
+            <ProgressBar from={startMastery} value={after} delay={600} duration={1200} height={10} color={mastery?.is_mastered ? colors.tertiary : colors.primary} />
+          </Animated.View>
+          <Animated.Text entering={FadeIn.delay(1800)} style={styles.centerText}>
             {mastery?.is_mastered ? "Skill mastered! New skills may have unlocked." : "Mastery updates with every answer you give."}
-          </Text>
+          </Animated.Text>
 
           {next && (
-            <TouchableOpacity style={styles.nextCard} onPress={() => router.replace(`/skill/${next.skill_id}`)}>
-              <Text style={styles.nextEyebrow}>RECOMMENDED NEXT</Text>
-              <Text style={styles.nextTitle} numberOfLines={2}>{next.label}</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" style={{ alignSelf: "flex-end" }} />
-            </TouchableOpacity>
+            <Animated.View entering={FadeInUp.delay(2000).springify().damping(16)} style={{ alignSelf: "stretch" }}>
+              <PressableScale style={styles.nextCard} onPress={() => router.replace(`/skill/${next.skill_id}`)} scaleTo={0.98}>
+                <Text style={styles.nextEyebrow}>RECOMMENDED NEXT</Text>
+                <Text style={styles.nextTitle} numberOfLines={2}>{next.label}</Text>
+                <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" style={{ alignSelf: "flex-end" }} />
+              </PressableScale>
+            </Animated.View>
           )}
-          <TouchableOpacity style={styles.secondaryBtn} onPress={load}>
-            <Text style={styles.secondaryBtnText}>Practice again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.back()}>
-            <Text style={styles.secondaryBtnText}>Back to skill</Text>
-          </TouchableOpacity>
+          <Animated.View entering={FadeIn.delay(2200)} style={{ alignSelf: "stretch", gap: spacing.sm }}>
+            <PressableScale style={styles.secondaryBtn} onPress={load}>
+              <Text style={styles.secondaryBtnText}>Practice again</Text>
+            </PressableScale>
+            <PressableScale style={styles.secondaryBtn} onPress={() => router.back()}>
+              <Text style={styles.secondaryBtnText}>Back to skill</Text>
+            </PressableScale>
+          </Animated.View>
         </ScrollView>
+        {great && <Confetti />}
       </SafeAreaView>
     );
   }
@@ -165,20 +187,20 @@ export default function PracticeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       {header}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${((idx + (picked ? 1 : 0)) / data.questions.length) * 100}%` }]} />
-      </View>
+      <ProgressBar value={(idx + (picked ? 1 : 0)) / data.questions.length} duration={450} style={{ marginHorizontal: spacing.md }} />
       <ScrollView contentContainerStyle={styles.body}>
+        <Animated.View key={idx} entering={SlideInRight.springify().damping(20)} exiting={SlideOutLeft.duration(180)}>
         <Text style={styles.counter}>Question {idx + 1} of {data.questions.length}</Text>
         <Text style={styles.question}>{q?.text}</Text>
 
-        {q?.options.map((opt) => {
+        {q?.options.map((opt, i) => {
           const isAnswer = opt === q.answer;
           const isPicked = opt === picked;
           const state = !picked ? "idle" : isAnswer ? "right" : isPicked ? "wrong" : "dim";
           return (
+            <Animated.View key={opt} entering={enter(i + 1)}>
+            <AnswerFx state={state}>
             <TouchableOpacity
-              key={opt}
               style={[styles.option, styles[`opt_${state}`]]}
               onPress={() => choose(opt)}
               disabled={!!picked}
@@ -191,25 +213,28 @@ export default function PracticeScreen() {
               {state === "right" && <MaterialIcons name="check-circle" size={22} color={colors.tertiary} />}
               {state === "wrong" && <MaterialIcons name="cancel" size={22} color={colors.error} />}
             </TouchableOpacity>
+            </AnswerFx>
+            </Animated.View>
           );
         })}
 
         {picked && (
-          <View style={[styles.feedback, { borderColor: picked === q?.answer ? colors.tertiary : colors.error }]}>
+          <Animated.View entering={FadeInDown.springify().damping(18)} style={[styles.feedback, { borderColor: picked === q?.answer ? colors.tertiary : colors.error }]}>
             <Text style={[styles.feedbackTitle, { color: picked === q?.answer ? colors.tertiaryDark : colors.error }]}>
               {picked === q?.answer ? "Correct!" : "Not quite"}
             </Text>
             {q?.explanation ? <Text style={styles.feedbackText}>{q.explanation}</Text> : null}
-          </View>
+          </Animated.View>
         )}
+        </Animated.View>
       </ScrollView>
 
       {picked && (
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={advance}>
+        <Animated.View entering={FadeInUp.springify().damping(18)} style={styles.footer}>
+          <PressableScale style={styles.primaryBtn} onPress={advance}>
             <Text style={styles.primaryBtnText}>{idx < data.questions.length - 1 ? "Next question" : "See results"}</Text>
-          </TouchableOpacity>
-        </View>
+          </PressableScale>
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -225,8 +250,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   topTitle: { ...typography.titleMd, color: colors.text, flex: 1, textAlign: "center", marginHorizontal: spacing.sm },
-  progressTrack: { height: 6, backgroundColor: colors.locked, marginHorizontal: spacing.md, borderRadius: radii.full, overflow: "hidden" },
-  progressFill: { height: "100%", backgroundColor: colors.primary, borderRadius: radii.full },
+  preparing: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.md },
+  preparingText: { ...typography.labelLg, color: colors.primary },
   body: { padding: spacing.md, paddingBottom: spacing.xl },
   counter: { ...typography.labelMd, color: colors.textSecondary, marginTop: spacing.sm },
   question: { ...typography.headlineMd, color: colors.text, marginTop: spacing.sm, marginBottom: spacing.lg },
@@ -257,9 +282,21 @@ const styles = StyleSheet.create({
   centerText: { ...typography.bodyMd, color: colors.textSecondary, textAlign: "center" },
   summary: { padding: spacing.lg, alignItems: "center", gap: spacing.md },
   summaryScore: { ...typography.headlineLg, color: colors.text },
+  trophy: { width: 104, height: 104, borderRadius: 52, alignItems: "center", justifyContent: "center", marginTop: spacing.md },
+  masteryCard: {
+    alignSelf: "stretch",
+    backgroundColor: colors.surfaceWhite,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  masteryCaption: { ...typography.labelSm, color: colors.textSecondary, letterSpacing: 1.2 },
   masteryRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   masteryFrom: { ...typography.headlineMd, color: colors.textSecondary },
-  masteryTo: { ...typography.headlineMd, color: colors.primary },
+  masteryTo: { ...typography.displayLg, fontSize: 34, lineHeight: 40, color: colors.primary },
+  deltaPill: { marginLeft: "auto", paddingHorizontal: 12, paddingVertical: 4, borderRadius: radii.full },
   delta: { ...typography.labelLg },
   nextCard: { alignSelf: "stretch", backgroundColor: colors.primary, borderRadius: radii.xxl, padding: spacing.lg, gap: spacing.xs, marginVertical: spacing.sm },
   nextEyebrow: { ...typography.labelSm, color: "rgba(255,255,255,0.75)", letterSpacing: 1.5 },

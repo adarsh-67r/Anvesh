@@ -10,6 +10,8 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
+import { feedback } from "../lib/feedback";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { api } from "../lib/api";
@@ -53,6 +55,7 @@ export default function TodosScreen() {
   };
 
   const toggleTodo = async (todo: Todo) => {
+    if (!todo.is_done) feedback.correct(); else feedback.tap();
     try {
       await api.put(`/api/todos/${todo.id}`, { is_done: !todo.is_done });
       setTodos((prev) => prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t)));
@@ -181,8 +184,8 @@ export default function TodosScreen() {
         {/* Pending Todos */}
         {pending.length > 0 && <Text style={styles.sectionLabel}>Pending</Text>}
         {pending.map((todo) => (
+          <Animated.View key={todo.id} layout={LinearTransition.springify().damping(18)} entering={FadeIn} exiting={FadeOut.duration(150)}>
           <TouchableOpacity
-            key={todo.id}
             style={styles.todoItem}
             onPress={() => toggleTodo(todo)}
             onLongPress={() => deleteTodo(todo)}
@@ -196,13 +199,14 @@ export default function TodosScreen() {
               </View>
             )}
           </TouchableOpacity>
+          </Animated.View>
         ))}
 
         {/* Completed */}
         {done.length > 0 && <Text style={styles.sectionLabel}>Completed</Text>}
         {done.map((todo) => (
+          <Animated.View key={todo.id} layout={LinearTransition.springify().damping(18)} entering={FadeIn.delay(100)} exiting={FadeOut.duration(150)}>
           <TouchableOpacity
-            key={todo.id}
             style={styles.todoItem}
             onPress={() => toggleTodo(todo)}
             onLongPress={() => deleteTodo(todo)}
@@ -211,6 +215,7 @@ export default function TodosScreen() {
             <MaterialIcons name="check-circle" size={22} color={colors.tertiary} />
             <Text style={[styles.todoText, styles.todoDone]} numberOfLines={2}>{todo.title}</Text>
           </TouchableOpacity>
+          </Animated.View>
         ))}
 
         {/* AI Suggestions */}

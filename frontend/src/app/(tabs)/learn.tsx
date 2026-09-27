@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
+import { PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
@@ -89,6 +91,13 @@ export default function PathScreen() {
           </View>
         )}
 
+        {!loaded && (
+          <View style={{ gap: spacing.sm }} accessibilityLabel="Loading">
+            <Skeleton height={14} width="30%" />
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} height={78} radius={radii.xl} />)}
+          </View>
+        )}
+
         {loaded && nodes.length === 0 && (
           <View style={styles.empty}>
             <MaterialIcons name="account-tree" size={48} color={colors.textMuted} />
@@ -102,6 +111,7 @@ export default function PathScreen() {
 
         {tiers.map((tier, i) => (
           <View key={i}>
+            {/* tiers cascade in, top to bottom */}
             {i > 0 && (
               <View style={styles.connector}>
                 <View style={styles.connectorLine} />
@@ -109,12 +119,13 @@ export default function PathScreen() {
               </View>
             )}
             <Text style={styles.levelLabel}>{i === 0 ? "FOUNDATIONS" : `LEVEL ${i}`}</Text>
-            {tier.map((n) => {
+            {tier.map((n, j) => {
               const st = STATUS[n.status];
               const missing = n.prerequisites.filter((p) => nodes.find((x) => x.id === p)?.status !== "mastered");
               return (
-                <TouchableOpacity
-                  key={n.id}
+                <Animated.View key={n.id} entering={enter(tiers.slice(0, i).reduce((a, t) => a + t.length, 0) + j)}>
+                <PressableScale
+                  scaleTo={0.98}
                   style={[styles.node, { backgroundColor: st.bg, borderColor: st.border }]}
                   onPress={() => router.push(`/skill/${n.id}`)}
                   accessibilityRole="button"
@@ -129,16 +140,15 @@ export default function PathScreen() {
                       <Text style={styles.nodeMeta} numberOfLines={2}>Needs: {missing.map(labelOf).join(", ")}</Text>
                     ) : (
                       <View style={styles.nodeBarRow}>
-                        <View style={styles.nodeBar}>
-                          <View style={[styles.nodeBarFill, { width: `${Math.round(n.mastery_score * 100)}%`, backgroundColor: st.border }]} />
-                        </View>
-                        <Text style={styles.nodeMeta}>{Math.round(n.mastery_score * 100)}%</Text>
+                        <ProgressBar value={n.mastery_score} color={st.border} track="rgba(148,163,184,0.25)" delay={300} style={{ flex: 1 }} />
+                        <Text style={styles.nodeMeta}>{Math.round(n.mastery_score * 100)}% mastery</Text>
                       </View>
                     )}
                     {n.video_count > 0 && <Text style={styles.nodeLessons}>{n.video_count} lessons</Text>}
                   </View>
                   <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
+                </PressableScale>
+                </Animated.View>
               );
             })}
           </View>
@@ -168,8 +178,6 @@ const styles = StyleSheet.create({
   },
   nodeTitle: { ...typography.titleMd, color: colors.text },
   nodeBarRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs },
-  nodeBar: { flex: 1, height: 6, borderRadius: radii.full, backgroundColor: "rgba(148,163,184,0.25)", overflow: "hidden" },
-  nodeBarFill: { height: "100%", borderRadius: radii.full },
   nodeMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
   nodeLessons: { ...typography.bodySm, color: colors.textMuted, marginTop: 2 },
   empty: { alignItems: "center", gap: spacing.sm, paddingTop: 80, paddingHorizontal: spacing.lg },

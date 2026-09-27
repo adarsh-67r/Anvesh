@@ -1,10 +1,15 @@
-import { createContext, useCallback, useContext, useState, type ComponentProps, type ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { createContext, useCallback, useContext, useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { Modal, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import Animated, { Easing, FadeInLeft, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, usePathname, type Href } from "expo-router";
 import { useAuth } from "../lib/auth";
 import { colors, radii, spacing, typography } from "../lib/theme";
+import { feedback, isSoundOn, setSoundOn } from "../lib/feedback";
+
+const PANEL = 280;
+const CLOSE_MS = 200;
 
 type IconName = ComponentProps<typeof MaterialIcons>["name"];
 
@@ -23,20 +28,39 @@ const SidebarContext = createContext<{ open: () => void }>({ open: () => {} });
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [visible, setVisible] = useState(false);
+  const [sound, setSound] = useState(isSoundOn());
   const { user, logout } = useAuth();
   const pathname = usePathname();
-  const open = useCallback(() => setVisible(true), []);
+  const p = useSharedValue(0);
+
+  const open = useCallback(() => { setSound(isSoundOn()); setVisible(true); feedback.tap(); }, []);
+  useEffect(() => {
+    if (visible) p.set(withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) }));
+  }, [visible, p]);
+  // Slide out first, then unmount the modal.
+  const close = (after?: () => void) => {
+    p.set(withTiming(0, { duration: CLOSE_MS, easing: Easing.in(Easing.cubic) }));
+    setTimeout(() => { setVisible(false); after?.(); }, CLOSE_MS);
+  };
+
+  const panelStyle = useAnimatedStyle(() => ({ transform: [{ translateX: (p.value - 1) * PANEL }] }));
+  const dimStyle = useAnimatedStyle(() => ({ opacity: p.value }));
 
   const go = (href: string) => {
-    setVisible(false);
+    feedback.tap();
+    close();
     if (href !== pathname) router.navigate(href as Href);
   };
 
   return (
     <SidebarContext.Provider value={{ open }}>
       {children}
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+      <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={() => close()}>
         <View style={styles.overlay}>
+          <Animated.View style={[StyleSheet.absoluteFill, styles.dim, dimStyle]}>
+            <Pressable style={{ flex: 1 }} onPress={() => close()} accessibilityLabel="Close menu" />
+          </Animated.View>
+          <Animated.View style={[styles.panelWrap, panelStyle]}>
           <SafeAreaView style={styles.panel} edges={["top", "bottom", "left"]}>
             <View style={styles.brand}>
               <View style={styles.logo}>
@@ -46,11 +70,11 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
             </View>
 
             <View style={styles.items}>
-              {ITEMS.map((item) => {
+              {ITEMS.map((item, i) => {
                 const active = pathname === item.href;
                 return (
+                  <Animated.View key={item.href} entering={FadeInLeft.delay(80 + i * 35).springify().damping(18)}>
                   <TouchableOpacity
-                    key={item.href}
                     style={[styles.item, active && styles.itemActive]}
                     onPress={() => go(item.href)}
                     accessibilityRole="button"
@@ -59,8 +83,21 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
                     <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textSecondary} />
                     <Text style={[styles.itemText, active && styles.itemTextActive]}>{item.label}</Text>
                   </TouchableOpacity>
+                  </Animated.View>
                 );
               })}
+            </View>
+
+            <View style={styles.soundRow}>
+              <MaterialIcons name={sound ? "volume-up" : "volume-off"} size={22} color={colors.textSecondary} />
+              <Text style={[styles.itemText, { flex: 1 }]}>Sounds</Text>
+              <Switch
+                value={sound}
+                onValueChange={(on) => { setSound(on); setSoundOn(on); }}
+                trackColor={{ true: colors.primary, false: colors.borderMuted }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Sound effects"
+              />
             </View>
 
             <View style={styles.footer}>
@@ -72,11 +109,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
                 <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
               </View>
               <TouchableOpacity
-                onPress={async () => {
-                  setVisible(false);
+                onPress={() => close(async () => {
                   await logout();
                   router.replace("/(auth)/login");
-                }}
+                })}
                 accessibilityLabel="Log out"
                 hitSlop={8}
               >
@@ -84,7 +120,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
               </TouchableOpacity>
             </View>
           </SafeAreaView>
-          <Pressable style={{ flex: 1 }} onPress={() => setVisible(false)} accessibilityLabel="Close menu" />
+          </Animated.View>
         </View>
       </Modal>
     </SidebarContext.Provider>
@@ -110,8 +146,11 @@ export function ScreenHeader({ title, subtitle, right }: { title: string; subtit
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, flexDirection: "row", backgroundColor: "rgba(15, 23, 42, 0.45)" },
-  panel: { width: 280, maxWidth: "82%", backgroundColor: colors.surfaceWhite, paddingHorizontal: spacing.md },
+  overlay: { flex: 1 },
+  dim: { backgroundColor: "rgba(15, 23, 42, 0.45)" },
+  panelWrap: { position: "absolute", left: 0, top: 0, bottom: 0, width: PANEL, maxWidth: "82%" },
+  panel: { flex: 1, backgroundColor: colors.surfaceWhite, paddingHorizontal: spacing.md, borderTopRightRadius: radii.xxl, borderBottomRightRadius: radii.xxl },
+  soundRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
   brand: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.lg },
   logo: {
     width: 36,

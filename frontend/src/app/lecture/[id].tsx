@@ -11,6 +11,8 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
+import { PressableScale, Skeleton, enter } from "../../components/Motion";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { api, logEvent } from "../../lib/api";
@@ -81,8 +83,16 @@ export default function LectureScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
+        {!detail && !error && (
+          <View style={{ gap: spacing.sm }} accessibilityLabel="Loading lesson">
+            <Skeleton height={24} width="90%" />
+            <Skeleton height={14} width="50%" />
+            <Skeleton height={48} radius={radii.full} style={{ marginTop: spacing.sm }} />
+            <Skeleton height={110} radius={radii.xl} style={{ marginTop: spacing.sm }} />
+          </View>
+        )}
         {detail && (
-          <>
+          <Animated.View entering={enter(0)}>
             <Text style={styles.title}>{detail.title}</Text>
             <Text style={styles.meta}>
               {detail.index ? `Lesson ${detail.index} of ${detail.total}` : "Lesson"}
@@ -91,22 +101,22 @@ export default function LectureScreen() {
             </Text>
 
             <View style={styles.actions}>
-              <TouchableOpacity
+              <PressableScale
                 style={[styles.actionBtn, styles.actionPrimary]}
                 onPress={() => router.push(`/practice/${detail.skill_id}`)}
                 accessibilityRole="button"
               >
                 <MaterialIcons name="quiz" size={20} color="#FFFFFF" />
                 <Text style={[styles.actionText, { color: "#FFFFFF" }]}>Practice</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={styles.actionBtn}
                 onPress={() => router.push({ pathname: "/chat", params: { label: `${detail.skill_label}: ${detail.title}` } })}
                 accessibilityRole="button"
               >
                 <MaterialIcons name="smart-toy" size={20} color={colors.primary} />
                 <Text style={styles.actionText}>Ask tutor</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
 
             <View style={styles.descBox}>
@@ -124,10 +134,11 @@ export default function LectureScreen() {
             {upNext.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>Up next</Text>
-                {upNext.slice(0, 8).map((l) => {
+                {upNext.slice(0, 8).map((l, i) => {
                   const vid = youTubeId(l.url);
                   return (
-                    <TouchableOpacity key={l.id} style={styles.lessonRow} onPress={() => router.replace(`/lecture/${l.id}`)}>
+                    <Animated.View key={l.id} entering={enter(i + 2)}>
+                    <PressableScale style={styles.lessonRow} onPress={() => router.replace(`/lecture/${l.id}`)} scaleTo={0.98}>
                       {vid ? (
                         <Image source={{ uri: youTubeThumb(vid) }} style={styles.lessonThumb} />
                       ) : (
@@ -136,12 +147,13 @@ export default function LectureScreen() {
                         </View>
                       )}
                       <Text style={styles.lessonTitle} numberOfLines={2}>{l.title}</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
+                    </Animated.View>
                   );
                 })}
               </>
             )}
-          </>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>

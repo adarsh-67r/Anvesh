@@ -11,6 +11,8 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
+import { Drift, PressableScale } from "../../components/Motion";
 import { router } from "expo-router";
 import { useAuth } from "../../lib/auth";
 import { colors, typography, spacing, radii, fonts } from "../../lib/theme";
@@ -43,17 +45,21 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Drift style={[styles.blob, { width: 260, height: 260, top: -90, right: -90 }]} duration={7000} />
+      <Drift style={[styles.blob, { width: 180, height: 180, bottom: -60, left: -70, backgroundColor: colors.secondaryLight }]} duration={8000} range={24} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
       >
         <View style={styles.header}>
-          <Image source={require("../../../assets/icon.png")} style={styles.logo} />
-          <Text style={styles.title}>Anvesh</Text>
-          <Text style={styles.subtitle}>Your adaptive learning companion</Text>
+          <Animated.View entering={ZoomIn.springify().damping(10)}>
+            <Image source={require("../../../assets/icon.png")} style={styles.logo} />
+          </Animated.View>
+          <Animated.Text entering={FadeInDown.delay(150)} style={styles.title}>Anvesh</Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(250)} style={styles.subtitle}>Your adaptive learning companion</Animated.Text>
         </View>
 
-        <View style={styles.form}>
+        <Animated.View entering={FadeInDown.delay(350).springify().damping(18)} style={styles.form}>
           <Text style={styles.formTitle}>{isSignUp ? "Create Account" : "Welcome Back"}</Text>
 
           <View style={styles.inputGroup}>
@@ -82,25 +88,23 @@ export default function LoginScreen() {
             />
           </View>
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleSubmit()}
             disabled={loading}
-            activeOpacity={0.8}
           >
             <Text style={styles.buttonText}>
               {loading ? "Please wait..." : isSignUp ? "Sign Up" : "Log In"}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
 
-          <TouchableOpacity
+          <PressableScale
             style={[styles.demoButton, loading && styles.buttonDisabled]}
             onPress={handleSubmit(true)}
             disabled={loading}
-            activeOpacity={0.8}
           >
             <Text style={styles.demoButtonText}>Try demo account</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.switchBtn}>
             <Text style={styles.switchText}>
@@ -108,14 +112,15 @@ export default function LoginScreen() {
               <Text style={styles.switchTextBold}>{isSignUp ? "Log In" : "Sign Up"}</Text>
             </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
+  container: { flex: 1, backgroundColor: colors.surface, overflow: "hidden" },
+  blob: { position: "absolute", borderRadius: 999, backgroundColor: colors.primaryLight },
   content: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.lg },
   header: { alignItems: "center", marginBottom: spacing.xl },
   logo: { width: 80, height: 80, borderRadius: radii.xl, marginBottom: spacing.md },

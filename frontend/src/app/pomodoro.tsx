@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { api, StudyStatus } from "../lib/api";
+import { Breathe, PressableScale, ProgressBar } from "../components/Motion";
+import { feedback } from "../lib/feedback";
 import { colors, typography, spacing, radii } from "../lib/theme";
 
 const FOCUS = 25 * 60;
@@ -33,6 +35,7 @@ export default function PomodoroScreen() {
           if (s <= 1) {
             setRunning(false);
             if (mode === "focus") {
+              feedback.celebrate();
               setStatus((st) => st && { ...st, study_minutes: st.study_minutes + 25, unlocked: st.study_minutes + 25 >= st.required_minutes });
               api.post("/api/recommend/events", { event_type: "study_session", skill_id: "general", context: { minutes: 25 } })
                 .then(refreshStatus)
@@ -101,9 +104,11 @@ export default function PomodoroScreen() {
           <Text style={[styles.modeText, { color: modeColor }]}>{modeLabel}</Text>
         </View>
 
-        <Text style={[styles.timer, { color: modeColor }]}>
-          {pad(mins)}:{pad(secs)}
-        </Text>
+        <Breathe active={running}>
+          <Text style={[styles.timer, { color: modeColor }]}>
+            {pad(mins)}:{pad(secs)}
+          </Text>
+        </Breathe>
 
         <Text style={styles.sessionText}>Session {session} of 4</Text>
         <Text style={styles.scheduleText}>25m Focus • 5m Short • 15m Long</Text>
@@ -112,12 +117,14 @@ export default function PomodoroScreen() {
           <TouchableOpacity style={styles.controlBtn} onPress={reset}>
             <MaterialIcons name="replay" size={28} color={colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity
+          <PressableScale
             style={[styles.playBtn, { backgroundColor: modeColor }]}
             onPress={() => setRunning(!running)}
+            scaleTo={0.9}
+            accessibilityLabel={running ? "Pause" : "Start"}
           >
             <MaterialIcons name={running ? "pause" : "play-arrow"} size={36} color="#FFFFFF" />
-          </TouchableOpacity>
+          </PressableScale>
           <TouchableOpacity style={styles.controlBtn} onPress={skip}>
             <MaterialIcons name="skip-next" size={28} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -131,9 +138,7 @@ export default function PomodoroScreen() {
           <Text style={styles.studyValue}>
             {Math.floor(studyMinutes / 60)}h {studyMinutes % 60}m
           </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, (studyMinutes / DAILY_GOAL) * 100)}%` }]} />
-          </View>
+          <ProgressBar value={studyMinutes / DAILY_GOAL} height={8} />
           <Text style={styles.progressLabel}>{studyMinutes} / {DAILY_GOAL} min goal</Text>
           {status && (
             <View style={styles.unlockRow}>
@@ -209,8 +214,6 @@ const styles = StyleSheet.create({
   studyHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginBottom: spacing.xs },
   studyLabel: { ...typography.titleMd, color: colors.text },
   studyValue: { ...typography.headlineMd, color: colors.primary, marginBottom: spacing.sm },
-  progressTrack: { height: 8, backgroundColor: colors.border, borderRadius: radii.full, overflow: "hidden" as const },
-  progressFill: { height: 8, backgroundColor: colors.primary, borderRadius: radii.full },
   progressLabel: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs, textAlign: "center" as const },
   unlockRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
 });

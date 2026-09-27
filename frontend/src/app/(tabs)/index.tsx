@@ -1,11 +1,13 @@
 import { useCallback, useState, type ComponentProps } from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
+import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect, type Href } from "expo-router";
 import { api, StudyStatus } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { ScreenHeader } from "../../components/Sidebar";
+import { Drift, PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
 type Recommendation = {
@@ -97,29 +99,30 @@ export default function TodayScreen() {
       >
         {/* Hero: the recommendation engine's pick */}
         {hero ? (
-          <View style={styles.hero}>
+          <Animated.View entering={enter(0)} style={styles.hero}>
+            <Drift style={[styles.blob, { width: 180, height: 180, top: -60, right: -50 }]} />
+            <Drift style={[styles.blob, { width: 90, height: 90, bottom: -30, right: 70, opacity: 0.08 }]} range={20} duration={6500} />
             <Text style={styles.heroEyebrow}>STUDY NEXT</Text>
             <Text style={styles.heroTitle} numberOfLines={2}>{hero.label}</Text>
             <Text style={styles.heroWhy}>{whyThis(hero)}</Text>
-            <View style={styles.heroBar}>
-              <View style={[styles.heroBarFill, { width: `${pct(hero.mastery_score)}%` }]} />
-            </View>
+            <ProgressBar value={hero.mastery_score} color="#FFFFFF" track="rgba(255,255,255,0.25)" delay={250} style={{ marginTop: spacing.sm }} />
             <View style={styles.heroFooter}>
               <Text style={styles.heroMeta}>
                 {pct(hero.mastery_score)}% mastered{hero.videos.length ? ` · ${hero.videos.length} lessons` : ""}
               </Text>
-              <TouchableOpacity
+              <PressableScale
                 style={styles.heroBtn}
                 onPress={() => router.push(`/skill/${hero.skill_id}`)}
                 accessibilityRole="button"
               >
                 <Text style={styles.heroBtnText}>{hero.mastery_score > 0 ? "Continue" : "Start"}</Text>
                 <MaterialIcons name="arrow-forward" size={18} color={colors.primary} />
-              </TouchableOpacity>
+              </PressableScale>
             </View>
-          </View>
+          </Animated.View>
         ) : loaded ? (
-          <View style={[styles.hero, styles.heroEmpty]}>
+          <Animated.View entering={enter(0)} style={[styles.hero, styles.heroEmpty]}>
+            <Drift style={[styles.blob, { width: 180, height: 180, top: -60, right: -50 }]} />
             <MaterialIcons name={graph.length ? "emoji-events" : "playlist-add"} size={32} color="#FFFFFF" />
             <Text style={styles.heroTitle}>{graph.length ? "Everything available is mastered" : "Add your first topic"}</Text>
             <Text style={styles.heroWhy}>
@@ -127,19 +130,27 @@ export default function TodayScreen() {
                 ? "Add a new topic or review your flashcards to stay sharp."
                 : "Paste a YouTube playlist and Anvesh builds your learning path."}
             </Text>
-            <TouchableOpacity style={styles.heroBtn} onPress={() => router.push("/add-content")}>
+            <PressableScale style={styles.heroBtn} onPress={() => router.push("/add-content")}>
               <Text style={styles.heroBtnText}>Add topic</Text>
               <MaterialIcons name="add" size={18} color={colors.primary} />
-            </TouchableOpacity>
+            </PressableScale>
+          </Animated.View>
+        ) : (
+          <View style={{ gap: spacing.sm }} accessibilityLabel="Loading">
+            <Skeleton height={196} radius={radii.xxl} />
+            <Skeleton height={20} width="40%" style={{ marginTop: spacing.lg }} />
+            <Skeleton height={68} radius={radii.xl} />
+            <Skeleton height={68} radius={radii.xl} />
           </View>
-        ) : null}
+        )}
 
         {/* Other recommendations */}
         {upNext.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Up next</Text>
-            {upNext.map((r) => (
-              <TouchableOpacity key={r.skill_id} style={styles.row} onPress={() => router.push(`/skill/${r.skill_id}`)}>
+            {upNext.map((r, i) => (
+              <Animated.View key={r.skill_id} entering={enter(i + 1)}>
+              <PressableScale style={styles.row} onPress={() => router.push(`/skill/${r.skill_id}`)} scaleTo={0.98}>
                 <View style={styles.rowIcon}>
                   <MaterialIcons name="bolt" size={18} color={colors.primary} />
                 </View>
@@ -148,7 +159,8 @@ export default function TodayScreen() {
                   <Text style={styles.rowMeta}>{pct(r.mastery_score)}% mastered</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-              </TouchableOpacity>
+              </PressableScale>
+              </Animated.View>
             ))}
           </>
         )}
@@ -158,39 +170,41 @@ export default function TodayScreen() {
         {/* Today's tools, each one tap away */}
         <Text style={styles.sectionTitle}>Today</Text>
         <View style={styles.tiles}>
-          {tiles.map((t) => (
-            <TouchableOpacity key={t.label} style={[styles.tile, { backgroundColor: t.bg }]} onPress={() => router.push(t.href)}>
+          {tiles.map((t, i) => (
+            <Animated.View key={t.label} entering={enter(i + 3)} style={{ flex: 1 }}>
+            <PressableScale style={[styles.tile, { backgroundColor: t.bg }]} onPress={() => router.push(t.href)}>
               <MaterialIcons name={t.icon} size={20} color={t.tint} />
               <Text style={[styles.tileValue, { color: t.tint }]}>{t.value}</Text>
               <Text style={styles.tileLabel}>{t.label}</Text>
-            </TouchableOpacity>
+            </PressableScale>
+            </Animated.View>
           ))}
         </View>
 
         {/* Progress */}
-        <TouchableOpacity style={styles.progressCard} onPress={() => router.push("/learn")}>
+        <Animated.View entering={enter(6)}>
+        <PressableScale style={styles.progressCard} onPress={() => router.push("/learn")} scaleTo={0.98}>
           <View style={{ flex: 1 }}>
             <Text style={styles.progressTitle}>Your path</Text>
             <Text style={styles.progressMeta}>
               {mastered} of {graph.length} skills mastered
             </Text>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: graph.length ? `${(mastered / graph.length) * 100}%` : "0%" }]} />
-            </View>
+            <ProgressBar value={graph.length ? mastered / graph.length : 0} color={colors.tertiary} delay={500} style={{ marginTop: spacing.sm }} />
           </View>
           <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
-        </TouchableOpacity>
+        </PressableScale>
+        </Animated.View>
 
         </>
         )}
 
         {atRisk && (
-          <View style={styles.riskCard}>
+          <Animated.View entering={enter(7)} style={styles.riskCard}>
             <MaterialIcons name="warning-amber" size={20} color={colors.error} />
             <Text style={styles.riskText}>
               You haven&apos;t studied in a while. A short focus session today keeps your progress from slipping.
             </Text>
-          </View>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -205,13 +219,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.xxl,
     padding: spacing.lg,
     gap: spacing.sm,
+    overflow: "hidden",
   },
+  blob: { position: "absolute", borderRadius: 999, backgroundColor: "#FFFFFF", opacity: 0.12 },
   heroEmpty: { alignItems: "flex-start" },
   heroEyebrow: { ...typography.labelSm, color: "rgba(255,255,255,0.75)", letterSpacing: 1.5 },
   heroTitle: { ...typography.headlineLg, color: "#FFFFFF" },
   heroWhy: { ...typography.bodyMd, color: "rgba(255,255,255,0.85)" },
-  heroBar: { height: 6, borderRadius: radii.full, backgroundColor: "rgba(255,255,255,0.25)", marginTop: spacing.sm, overflow: "hidden" },
-  heroBarFill: { height: "100%", backgroundColor: "#FFFFFF", borderRadius: radii.full },
   heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
   heroMeta: { ...typography.bodySm, color: "rgba(255,255,255,0.85)" },
   heroBtn: {
@@ -248,7 +262,7 @@ const styles = StyleSheet.create({
   rowTitle: { ...typography.titleMd, color: colors.text },
   rowMeta: { ...typography.bodySm, color: colors.textSecondary },
   tiles: { flexDirection: "row", gap: spacing.sm },
-  tile: { flex: 1, borderRadius: radii.xl, padding: spacing.md, gap: 2, minHeight: 110 },
+  tile: { borderRadius: radii.xl, padding: spacing.md, gap: 2, minHeight: 110 },
   tileValue: { ...typography.headlineMd, marginTop: spacing.xs },
   tileLabel: { ...typography.bodySm, color: colors.textSecondary },
   progressCard: {
@@ -264,8 +278,6 @@ const styles = StyleSheet.create({
   },
   progressTitle: { ...typography.titleMd, color: colors.text },
   progressMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
-  progressBar: { height: 6, borderRadius: radii.full, backgroundColor: colors.locked, marginTop: spacing.sm, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: radii.full, backgroundColor: colors.tertiary },
   riskCard: {
     flexDirection: "row",
     gap: spacing.sm,

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeInDown, SlideInRight, SlideOutLeft, ZoomIn } from "react-native-reanimated";
+import { Breathe, Confetti, CountUp, PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
+import { feedback } from "../../lib/feedback";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
@@ -96,6 +99,7 @@ export default function QuizScreen() {
 
   const selectOption = (opt: string) => {
     if (answered[currentQ] !== undefined) return;
+    feedback.tap();
     setSelected((prev) => ({ ...prev, [currentQ]: opt }));
     setAnswerMs((prev) => ({ ...prev, [currentQ]: Date.now() - qStartRef.current }));
   };
@@ -120,6 +124,7 @@ export default function QuizScreen() {
         answers,
       });
       setResult(res);
+      if (res.percentage >= 70) feedback.celebrate(); else feedback.press();
       setScore(res.score * 250);
       setStreak(res.score);
     } catch {}
@@ -171,8 +176,12 @@ export default function QuizScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.loadingText}>Loading quiz...</Text>
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={[styles.scroll, { gap: spacing.sm, marginTop: spacing.xl }]} accessibilityLabel="Loading quiz">
+          <Skeleton height={24} width="80%" />
+          <Skeleton height={24} width="55%" style={{ marginBottom: spacing.md }} />
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} height={58} radius={radii.lg} />)}
+        </View>
       </SafeAreaView>
     );
   }
@@ -209,25 +218,27 @@ export default function QuizScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.resultContainer}>
-          <MaterialIcons
-            name={result.percentage >= 70 ? "emoji-events" : "refresh"}
-            size={56}
-            color={result.percentage >= 70 ? colors.tertiary : colors.secondary}
-          />
-          <Text style={styles.resultScore}>{result.score} / {result.total}</Text>
-          <Text style={styles.resultPct}>{result.percentage}%</Text>
-          <Text style={styles.resultMsg}>
+          <Animated.View entering={ZoomIn.springify().damping(9)}>
+            <MaterialIcons
+              name={result.percentage >= 70 ? "emoji-events" : "refresh"}
+              size={64}
+              color={result.percentage >= 70 ? colors.tertiary : colors.secondary}
+            />
+          </Animated.View>
+          <Animated.Text entering={FadeInDown.delay(150)} style={styles.resultScore}>{result.score} / {result.total}</Animated.Text>
+          <CountUp to={result.percentage} delay={300} format={(n) => `${Math.round(n)}%`} style={styles.resultPct} />
+          <Animated.Text entering={FadeIn.delay(900)} style={styles.resultMsg}>
             {result.percentage >= 90 ? "Outstanding!" : result.percentage >= 70 ? "Great job!" : "Keep practicing!"}
-          </Text>
+          </Animated.Text>
           <View style={styles.resultBadges}>
-            <View style={[styles.resultBadge, { backgroundColor: colors.primaryLight }]}>
+            <Animated.View entering={ZoomIn.delay(1100).springify()} style={[styles.resultBadge, { backgroundColor: colors.primaryLight }]}>
               <MaterialIcons name="bolt" size={16} color={colors.primary} />
-              <Text style={[styles.resultBadgeText, { color: colors.primary }]}>+{xpEarned} XP</Text>
-            </View>
-            <View style={[styles.resultBadge, { backgroundColor: colors.tertiaryLight }]}>
+              <CountUp to={xpEarned} delay={1100} format={(n) => `+${Math.round(n)} XP`} style={[styles.resultBadgeText, { color: colors.primary }]} />
+            </Animated.View>
+            <Animated.View entering={ZoomIn.delay(1250).springify()} style={[styles.resultBadge, { backgroundColor: colors.tertiaryLight }]}>
               <MaterialIcons name="local-fire-department" size={16} color={colors.tertiaryDark} />
-              <Text style={[styles.resultBadgeText, { color: colors.tertiaryDark }]}>{score} pts</Text>
-            </View>
+              <CountUp to={score} delay={1250} format={(n) => `${Math.round(n)} pts`} style={[styles.resultBadgeText, { color: colors.tertiaryDark }]} />
+            </Animated.View>
           </View>
           <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()}>
             <Text style={styles.doneBtnText}>Done</Text>
@@ -239,6 +250,7 @@ export default function QuizScreen() {
             <Text style={[styles.doneBtnText, { color: colors.primary }]}>Play Again</Text>
           </TouchableOpacity>
         </View>
+        {result.percentage >= 70 && <Confetti />}
       </SafeAreaView>
     );
   }
@@ -250,10 +262,10 @@ export default function QuizScreen() {
           <MaterialIcons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>{quiz?.skill.label}</Text>
-        <View style={styles.timerBadge}>
+        <Breathe active={timer <= 5 && timer > 0} style={styles.timerBadge}>
           <MaterialIcons name="timer" size={14} color={timer <= 5 ? colors.error : colors.primary} />
           <Text style={[styles.timerText, timer <= 5 && { color: colors.error }]}>{timer}s</Text>
-        </View>
+        </Breathe>
       </View>
 
       {/* Score & Streak Bar */}
@@ -262,38 +274,32 @@ export default function QuizScreen() {
           <Text style={styles.scoreText}>{score} pts</Text>
         </View>
         {streak >= 2 && (
-          <View style={[styles.scoreBadge, { backgroundColor: colors.errorLight }]}>
+          <Animated.View entering={ZoomIn.springify()} style={[styles.scoreBadge, { backgroundColor: colors.errorLight }]}>
             <MaterialIcons name="local-fire-department" size={14} color={colors.error} />
             <Text style={[styles.scoreText, { color: colors.error }]}>x{multiplier}</Text>
-          </View>
+          </Animated.View>
         )}
         <Text style={styles.counter}>
           Question {currentQ + 1} of {quiz?.questions.length}
         </Text>
       </View>
 
-      <View style={styles.progressBarBg}>
-        <View
-          style={[
-            styles.progressBarFill,
-            { width: `${((currentQ + 1) / (quiz?.questions.length || 1)) * 100}%` },
-          ]}
-        />
-      </View>
+      <ProgressBar value={(currentQ + 1) / (quiz?.questions.length || 1)} duration={450} style={{ marginHorizontal: spacing.md }} />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {question && (
-          <>
+          <Animated.View key={currentQ} entering={SlideInRight.springify().damping(20)} exiting={SlideOutLeft.duration(180)}>
             <Text style={styles.questionText}>{question.text}</Text>
 
             {question.options.map((opt, i) => {
               const isSelected = selected[currentQ] === opt;
               return (
-                <TouchableOpacity
-                  key={i}
+                <Animated.View key={i} entering={enter(i + 1)}>
+                <PressableScale
+                  haptic={false}
+                  scaleTo={0.98}
                   style={[styles.optionBtn, isSelected && styles.optionSelected]}
                   onPress={() => selectOption(opt)}
-                  activeOpacity={0.7}
                 >
                   <View style={[styles.optionLetter]}>
                     <Text style={styles.optionLetterText}>{String.fromCharCode(65 + i)}</Text>
@@ -301,10 +307,11 @@ export default function QuizScreen() {
                   <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                     {opt}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
+                </Animated.View>
               );
             })}
-          </>
+          </Animated.View>
         )}
 
         <View style={styles.navRow}>

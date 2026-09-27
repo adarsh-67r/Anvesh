@@ -11,6 +11,8 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
+import { CountUp, PressableScale, ProgressBar, Skeleton, enter } from "../../components/Motion";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { api, StudyStatus } from "../../lib/api";
@@ -26,7 +28,7 @@ const LESSONS_SHOWN = 5;
 
 function Step({ n, title, subtitle, done, children }: { n: number; title: string; subtitle: string; done?: boolean; children: ReactNode }) {
   return (
-    <View style={styles.step}>
+    <Animated.View entering={enter(n)} style={styles.step}>
       <View style={styles.stepHead}>
         <View style={[styles.stepBadge, done && styles.stepBadgeDone]}>
           {done ? <MaterialIcons name="check" size={16} color="#FFFFFF" /> : <Text style={styles.stepNum}>{n}</Text>}
@@ -37,13 +39,14 @@ function Step({ n, title, subtitle, done, children }: { n: number; title: string
         </View>
       </View>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 
 export default function SkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [mastery, setMastery] = useState<MasteryInfo | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [videos, setVideos] = useState<Video[]>([]);
   const [graph, setGraph] = useState<GraphNode[]>([]);
   const [study, setStudy] = useState<StudyStatus | null>(null);
@@ -67,6 +70,7 @@ export default function SkillScreen() {
     setVideos(v);
     setGraph(g);
     setStudy(s);
+    setLoaded(true);
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -130,8 +134,16 @@ export default function SkillScreen() {
           />
         }
       >
+        {!loaded ? (
+          <View style={{ gap: spacing.md }} accessibilityLabel="Loading">
+            <Skeleton height={104} radius={radii.xl} />
+            <Skeleton height={220} radius={radii.xl} />
+            <Skeleton height={120} radius={radii.xl} />
+          </View>
+        ) : (
+        <>
         {/* Mastery */}
-        <View style={styles.masteryCard}>
+        <Animated.View entering={enter(0)} style={styles.masteryCard}>
           <View style={styles.masteryRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.masteryLabel}>{mastered ? "Mastered" : pct >= 50 ? "In progress" : "Getting started"}</Text>
@@ -139,12 +151,10 @@ export default function SkillScreen() {
                 Tracked by {MODEL_NAMES[mastery?.phase ?? "ema"]}
               </Text>
             </View>
-            <Text style={styles.masteryPct}>{pct}%</Text>
+            <CountUp to={pct} delay={150} format={(n) => `${Math.round(n)}%`} style={styles.masteryPct} />
           </View>
-          <View style={styles.bar}>
-            <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: mastered ? colors.tertiary : colors.primary }]} />
-          </View>
-        </View>
+          <ProgressBar value={pct / 100} height={8} delay={150} color={mastered ? colors.tertiary : colors.primary} style={{ marginTop: spacing.sm }} />
+        </Animated.View>
 
         {unmet.length > 0 && (
           <View style={styles.lockBanner}>
@@ -158,7 +168,7 @@ export default function SkillScreen() {
           {lessons.map((v, i) => {
             const vid = youTubeId(v.url);
             return (
-              <TouchableOpacity key={v.id} style={styles.lesson} onPress={() => router.push(`/lecture/${v.id}`)}>
+              <PressableScale key={v.id} style={styles.lesson} onPress={() => router.push(`/lecture/${v.id}`)} scaleTo={0.98}>
                 {vid ? (
                   <View>
                     <Image source={{ uri: youTubeThumb(vid) }} style={styles.thumb} />
@@ -175,7 +185,7 @@ export default function SkillScreen() {
                   <Text style={styles.lessonIndex}>Lesson {i + 1}</Text>
                   <Text style={styles.lessonTitle} numberOfLines={2}>{v.title}</Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             );
           })}
           {videos.length > LESSONS_SHOWN && (
@@ -218,10 +228,10 @@ export default function SkillScreen() {
 
         {/* ② Practice */}
         <Step n={2} title="Practice" subtitle="5 questions · every answer updates your mastery" done={mastered}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push(`/practice/${id}`)} accessibilityRole="button">
+          <PressableScale style={styles.primaryBtn} onPress={() => router.push(`/practice/${id}`)} accessibilityRole="button">
             <MaterialIcons name="quiz" size={20} color="#FFFFFF" />
             <Text style={styles.primaryBtnText}>{pct > 0 ? "Practice again" : "Start practice"}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </Step>
 
         {/* ③ Challenge */}
@@ -234,14 +244,14 @@ export default function SkillScreen() {
               : `Unlocks after ${study?.required_minutes ?? 60} focus minutes (${study?.study_minutes ?? 0} so far today)`
           }
         >
-          <TouchableOpacity
+          <PressableScale
             style={[styles.secondaryBtn, !study?.unlocked && styles.secondaryBtnLocked]}
             onPress={() => router.push(study?.unlocked ? `/quiz/${id}` : "/pomodoro")}
             accessibilityRole="button"
           >
             <MaterialIcons name={study?.unlocked ? "bolt" : "timer"} size={20} color={colors.primary} />
             <Text style={styles.secondaryBtnText}>{study?.unlocked ? "Take the challenge" : "Start a focus session"}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </Step>
 
         {/* Prerequisites */}
@@ -300,6 +310,8 @@ export default function SkillScreen() {
             </View>
           </View>
         )}
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -328,8 +340,6 @@ const styles = StyleSheet.create({
   masteryLabel: { ...typography.titleMd, color: colors.text },
   masteryModel: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
   masteryPct: { ...typography.displayLg, fontSize: 36, lineHeight: 42, color: colors.primary },
-  bar: { height: 8, borderRadius: radii.full, backgroundColor: colors.locked, marginTop: spacing.sm, overflow: "hidden" },
-  barFill: { height: "100%", borderRadius: radii.full },
   lockBanner: {
     flexDirection: "row",
     alignItems: "center",

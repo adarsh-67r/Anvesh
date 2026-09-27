@@ -1,4 +1,4 @@
-import { Slot } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
   useFonts,
@@ -12,6 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { AuthProvider } from "../lib/auth";
 import { SidebarProvider } from "../components/Sidebar";
+import { colors } from "../lib/theme";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -34,7 +35,14 @@ export default function RootLayout() {
     <AuthProvider>
       <SidebarProvider>
         <StatusBar style="dark" />
-        <Slot />
+        <Stack screenOptions={{ headerShown: false, animation: "slide_from_right", contentStyle: { backgroundColor: colors.surface } }}>
+          <Stack.Screen name="index" options={{ animation: "fade" }} />
+          <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
+          <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
+          <Stack.Screen name="practice/[skillId]" options={{ animation: "slide_from_bottom" }} />
+          <Stack.Screen name="quiz/[skillId]" options={{ animation: "slide_from_bottom" }} />
+          <Stack.Screen name="lecture/[id]" options={{ animation: "fade_from_bottom" }} />
+        </Stack>
       </SidebarProvider>
     </AuthProvider>
   );

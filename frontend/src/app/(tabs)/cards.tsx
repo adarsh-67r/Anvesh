@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeIn, FadeInDown, SlideInRight, SlideOutLeft, ZoomIn, interpolate, useAnimatedStyle, useSharedValue, withTiming, Easing } from "react-native-reanimated";
+import { PressableScale, enter } from "../../components/Motion";
+import { feedback } from "../../lib/feedback";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
@@ -19,6 +22,39 @@ import { colors, typography, spacing, radii } from "../../lib/theme";
 
 const QUALITY_LABELS = ["Blackout", "Forgot", "Familiar", "Hard", "Good", "Perfect"];
 const QUALITY_COLORS = ["#BA1A1A", "#C2410C", "#EA580C", "#D97706", "#0EA5E9", "#10B981"];
+
+/** A flashcard that turns over in 3D: question on the front face, answer on the back. */
+function FlipCard({ front, back, flipped, onPress }: { front: string; back: string; flipped: boolean; onPress: () => void }) {
+  const r = useSharedValue(0);
+  useEffect(() => {
+    r.value = withTiming(flipped ? 180 : 0, { duration: 450, easing: Easing.inOut(Easing.cubic) });
+  }, [flipped, r]);
+  const frontStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1000 }, { rotateY: `${r.value}deg` }],
+    opacity: r.value < 90 ? 1 : 0,
+  }));
+  const backStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 1000 }, { rotateY: `${r.value - 180}deg` }],
+    opacity: r.value >= 90 ? 1 : 0,
+  }));
+  const lift = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(Math.abs(90 - r.value), [0, 90], [1.04, 1]) }] }));
+  return (
+    <PressableScale onPress={onPress} scaleTo={0.98} accessibilityRole="button" accessibilityLabel={flipped ? `Answer: ${back}. Tap to see question` : `Question: ${front}. Tap to reveal answer`}>
+      <Animated.View style={lift}>
+        <Animated.View style={[styles.flashcard, frontStyle]}>
+          <Text style={styles.cardSide}>Question</Text>
+          <Text style={styles.cardContent}>{front}</Text>
+          <Text style={styles.tapHint}>Tap to reveal answer</Text>
+        </Animated.View>
+        <Animated.View style={[styles.flashcard, styles.flashcardBack, StyleSheet.absoluteFill, backStyle]}>
+          <Text style={[styles.cardSide, { color: colors.primary }]}>Answer</Text>
+          <Text style={styles.cardContent}>{back}</Text>
+          <Text style={styles.tapHint}>Tap to see question</Text>
+        </Animated.View>
+      </Animated.View>
+    </PressableScale>
+  );
+}
 
 export default function CardsScreen() {
   const [dueCards, setDueCards] = useState<Card[]>([]);
@@ -51,6 +87,7 @@ export default function CardsScreen() {
 
   const review = async (quality: number) => {
     if (!current) return;
+    if (quality >= 4) feedback.correct(); else feedback.press();
     try {
       const queued = await reviewCard(current.id, quality);
       if (queued) {
@@ -144,40 +181,39 @@ export default function CardsScreen() {
 
         {current ? (
           <>
-            <TouchableOpacity
-              style={styles.flashcard}
-              onPress={() => setFlipped(!flipped)}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.cardSide}>{flipped ? "Answer" : "Question"}</Text>
-              <Text style={styles.cardContent}>{flipped ? current.back : current.front}</Text>
-              <Text style={styles.tapHint}>Tap to {flipped ? "see question" : "reveal answer"}</Text>
-            </TouchableOpacity>
+            <Animated.View key={current.id} entering={SlideInRight.springify().damping(18)} exiting={SlideOutLeft.duration(200)}>
+              <FlipCard front={current.front} back={current.back} flipped={flipped} onPress={() => setFlipped(!flipped)} />
+            </Animated.View>
 
             {flipped && (
-              <View style={styles.qualityRow}>
+              <Animated.View entering={FadeInDown.delay(250).springify().damping(18)} style={styles.qualityRow}>
                 <Text style={styles.qualityLabel}>Recall Confidence</Text>
                 <View style={styles.qualityBtns}>
                   {QUALITY_LABELS.map((label, i) => (
-                    <TouchableOpacity
-                      key={i}
+                    <Animated.View key={i} entering={enter(i)} style={{ flex: 1 }}>
+                    <PressableScale
+                      haptic={false}
                       style={[styles.qualityBtn, { borderColor: QUALITY_COLORS[i] }]}
                       onPress={() => review(i)}
+                      accessibilityLabel={`${i}, ${label}`}
                     >
                       <Text style={[styles.qualityBtnNum, { color: QUALITY_COLORS[i] }]}>{i}</Text>
                       <Text style={styles.qualityBtnLabel}>{label}</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
+                    </Animated.View>
                   ))}
                 </View>
-              </View>
+              </Animated.View>
             )}
           </>
         ) : (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="check-circle" size={48} color={colors.tertiary} />
+          <Animated.View entering={FadeIn} style={styles.emptyState}>
+            <Animated.View entering={ZoomIn.springify().damping(9)}>
+              <MaterialIcons name="check-circle" size={56} color={colors.tertiary} />
+            </Animated.View>
             <Text style={styles.emptyTitle}>All caught up!</Text>
             <Text style={styles.emptyText}>No cards due for review right now.</Text>
-          </View>
+          </Animated.View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -240,7 +276,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: spacing.md,
+    backfaceVisibility: "hidden",
   },
+  flashcardBack: { backgroundColor: colors.primaryLight, borderColor: colors.primary, backfaceVisibility: "hidden" },
   cardSide: { ...typography.labelMd, color: colors.textMuted, marginBottom: spacing.sm },
   cardContent: { ...typography.headlineSm, color: colors.text, textAlign: "center" },
   tapHint: { ...typography.bodySm, color: colors.textMuted, marginTop: spacing.md },
@@ -248,7 +286,6 @@ const styles = StyleSheet.create({
   qualityLabel: { ...typography.labelMd, color: colors.textSecondary, marginBottom: spacing.sm, textAlign: "center" },
   qualityBtns: { flexDirection: "row", gap: spacing.xs },
   qualityBtn: {
-    flex: 1,
     alignItems: "center",
     paddingVertical: spacing.sm,
     borderRadius: radii.lg,

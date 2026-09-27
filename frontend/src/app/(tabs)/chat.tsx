@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import Animated, { FadeIn, FadeInUp, ZoomIn } from "react-native-reanimated";
+import { TypingDots } from "../../components/Motion";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
@@ -164,14 +166,17 @@ export default function ChatScreen() {
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {messages.length === 0 && (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="school" size={40} color={colors.textMuted} />
+            <Animated.View entering={FadeIn.delay(150)} style={styles.emptyState}>
+              <Animated.View entering={ZoomIn.springify().damping(10)}>
+                <MaterialIcons name="school" size={44} color={colors.primary} />
+              </Animated.View>
               <Text style={styles.emptyText}>Ask me anything about your studies!</Text>
-            </View>
+            </Animated.View>
           )}
           {messages.map((msg, i) => (
-            <View
+            <Animated.View
               key={i}
+              entering={FadeInUp.springify().damping(18)}
               style={[styles.bubble, msg.role === "user" ? styles.userBubble : styles.aiBubble]}
             >
               {msg.role !== "user" && (
@@ -197,31 +202,31 @@ export default function ChatScreen() {
               <Text style={[styles.bubbleText, msg.role === "user" && styles.userBubbleText]}>
                 {msg.content}
               </Text>
-            </View>
+            </Animated.View>
           ))}
           {sending && (
-            <View style={[styles.bubble, styles.aiBubble, { paddingVertical: 12 }]}>
-              <ActivityIndicator size="small" color={colors.primary} />
-            </View>
+            <Animated.View entering={FadeInUp.springify().damping(18)} style={[styles.bubble, styles.aiBubble, { paddingVertical: 14 }]}>
+              <TypingDots />
+            </Animated.View>
           )}
         </ScrollView>
 
         {recording && (
-          <View style={styles.recordingBar} accessibilityLiveRegion="polite">
+          <Animated.View entering={FadeInUp} style={styles.recordingBar} accessibilityLiveRegion="polite">
             <MaterialIcons name="fiber-manual-record" size={14} color={colors.error} />
             <Text style={styles.recordingText}>
               Listening... {Math.floor(recState.durationMillis / 1000)}s. Tap stop when done.
             </Text>
-          </View>
+          </Animated.View>
         )}
         {pending && (
-          <View style={styles.pendingBar}>
+          <Animated.View entering={FadeInUp} style={styles.pendingBar}>
             <MaterialIcons name={fileIcon(pending.mimeType)} size={18} color={colors.primary} />
             <Text style={styles.pendingText} numberOfLines={1}>{pending.name}</Text>
             <TouchableOpacity onPress={() => setPending(null)} hitSlop={8} accessibilityLabel="Remove attachment">
               <MaterialIcons name="close" size={18} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
         <View style={styles.inputBar}>
           <TouchableOpacity
