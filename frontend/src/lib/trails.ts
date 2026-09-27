@@ -8,7 +8,7 @@ export type TopicNode = {
   summary: string | null;
   trail_id: string;
   trail_title: string;
-  equivalents: { id: string; label: string; trail_title: string }[];
+  equivalents: { id: string; label: string; trail_title: string; source_title: string | null }[];
   mastery_score: number;
   status: TopicStatus;
   video_count: number;

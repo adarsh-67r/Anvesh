@@ -119,7 +119,7 @@ export default function TrailScreen() {
                       )}
                       <Text style={styles.nodeLessons}>
                         {n.video_count} lessons
-                        {n.equivalents.length ? ` · also in ${n.equivalents[0].label}` : ""}
+                        {n.equivalents.length ? ` · also in ${n.equivalents[0].source_title ?? n.equivalents[0].label}` : ""}
                       </Text>
                     </View>
                     <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />

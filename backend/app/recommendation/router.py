@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import SkillMastery, SkillVideo, TrailTopic, User
+from app.models import SkillMastery, SkillVideo, Source, TrailTopic, User
 from app.recommendation import orchestrator
 from app.recommendation.event_logger import log_event
 from app.recommendation.knowledge_graph import KnowledgeGraph, SkillNode
@@ -57,6 +57,10 @@ async def build_graph(db: AsyncSession, user_id, trail_id: str | None = None) ->
     effective = expand_mastered(mastered, groups)
     labels = {t.id: t.label for t in topics}
     trail_of = {t.id: t.trail_title for t in topics}
+    source_titles = dict(((str(tid), ref), title) for tid, ref, title in (await db.execute(
+        select(Source.trail_id, Source.source_ref, Source.title).where(Source.trail_id.in_({t.trail_id for t in topics}))
+    )).all()) if topics else {}
+    source_of = {t.id: source_titles.get((t.trail_id, t.source_ref)) for t in topics}
     ids = [t.id for t in topics]
     counts = dict((await db.execute(
         select(SkillVideo.skill_id, sqlfunc.count(SkillVideo.id))
@@ -72,7 +76,7 @@ async def build_graph(db: AsyncSession, user_id, trail_id: str | None = None) ->
             "id": t.id, "label": t.label, "depth": t.depth, "subject": t.subject, "grade": 0,
             "prerequisites": t.prerequisites, "position": t.position, "summary": t.summary,
             "trail_id": t.trail_id, "trail_title": t.trail_title, "source_ref": t.source_ref,
-            "equivalents": [{"id": e, "label": labels[e], "trail_title": trail_of[e]} for e in t.equivalent_to],
+            "equivalents": [{"id": e, "label": labels[e], "trail_title": trail_of[e], "source_title": source_of[e]} for e in t.equivalent_to],
             "mastery_score": round(m.mastery_score, 4) if m else 0.0,
             "is_mastered": m.is_mastered if m else False,
             "status": orchestrator.skill_status(t, mastered, effective),
