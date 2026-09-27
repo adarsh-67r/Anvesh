@@ -330,7 +330,7 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your DATABASE_URL, JWT_SECRET, GEMINI_API_KEY
+# Edit .env with your DATABASE_URL, JWT_SECRET, GEMINI_API_KEY (and optionally YOUTUBE_API_KEY: servers are bot-blocked by YouTube, the Data API is not)
 
 # Start local PostgreSQL (if using Docker)
 cd ..

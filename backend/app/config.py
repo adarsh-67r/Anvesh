@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     gemini_api_key: str = ""
+    youtube_api_key: str = ""
     game_unlock_minutes: int = 60
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

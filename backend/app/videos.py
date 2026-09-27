@@ -13,6 +13,7 @@ from app.deps import get_current_user
 from app.models import Skill, SkillVideo, TopicNotes, User
 from app.recommendation.router import visible_lessons
 from app.trails.scope import require_topic
+from app.trails import youtube
 from app.trails.youtube import parse_ref
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -34,17 +35,16 @@ _detail_cache: dict[str, dict] = {}
 
 def _extract_video(url: str) -> dict:
     """Channel, description and duration for one video; empty on any failure."""
+    ref = parse_ref(url)
     try:
-        import yt_dlp
-        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as ydl:
-            info = ydl.extract_info(url, download=False) or {}
-        return {
-            "channel": info.get("channel") or info.get("uploader"),
-            "description": (info.get("description") or "").strip()[:4000] or None,
-            "duration": info.get("duration"),
-        }
+        info = youtube.video_info(ref[1]) if ref and ref[0] == "video" else {}
     except Exception:
-        return {"channel": None, "description": None, "duration": None}
+        info = {}
+    return {
+        "channel": info.get("channel") or info.get("uploader"),
+        "description": (info.get("description") or "").strip()[:4000] or None,
+        "duration": info.get("duration"),
+    }
 
 
 @router.get("/detail/{video_id}")
