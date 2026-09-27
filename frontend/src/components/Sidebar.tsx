@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ComponentProps, type ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import Animated, { Easing, FadeInLeft, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -62,9 +62,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
           <Animated.View style={[styles.panelWrap, panelStyle]}>
           <SafeAreaView style={styles.panel} edges={["top", "bottom", "left"]}>
             <View style={styles.brand}>
-              <View style={styles.logo}>
-                <MaterialIcons name="explore" size={22} color="#FFFFFF" />
-              </View>
+              <Image source={require("../../assets/icon.png")} style={styles.logo} />
               <Text style={styles.brandText}>Anvesh</Text>
             </View>
 
