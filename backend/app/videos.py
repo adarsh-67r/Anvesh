@@ -1,6 +1,7 @@
 import asyncio
 import re
 from concurrent.futures import ThreadPoolExecutor
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -56,6 +57,55 @@ async def _ensure_skill(db: AsyncSession, skill_id: str, label: str, source_url:
     db.add(skill)
     await db.flush()
     return skill
+
+
+# ponytail: in-process cache of YouTube metadata; a restart re-fetches, fine at demo scale
+_detail_cache: dict[str, dict] = {}
+
+
+def _extract_video(url: str) -> dict:
+    """Channel, description and duration for one video; empty on any failure."""
+    try:
+        import yt_dlp
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as ydl:
+            info = ydl.extract_info(url, download=False) or {}
+        return {
+            "channel": info.get("channel") or info.get("uploader"),
+            "description": (info.get("description") or "").strip()[:4000] or None,
+            "duration": info.get("duration"),
+        }
+    except Exception:
+        return {"channel": None, "description": None, "duration": None}
+
+
+@router.get("/detail/{video_id}")
+async def video_detail(video_id: UUID, db: AsyncSession = Depends(get_db)):
+    video = await db.get(SkillVideo, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    skill = await db.get(Skill, video.skill_id)
+    lessons = (
+        await db.execute(
+            select(SkillVideo).where(SkillVideo.skill_id == video.skill_id).order_by(SkillVideo.display_order)
+        )
+    ).scalars().all()
+
+    if video.url not in _detail_cache:
+        loop = asyncio.get_running_loop()
+        _detail_cache[video.url] = await loop.run_in_executor(_executor, _extract_video, video.url)
+
+    ids = [l.id for l in lessons]
+    return {
+        "id": str(video.id),
+        "title": video.title,
+        "url": video.url,
+        "skill_id": video.skill_id,
+        "skill_label": skill.label if skill else video.skill_id,
+        "index": ids.index(video.id) + 1 if video.id in ids else None,
+        "total": len(lessons),
+        **_detail_cache[video.url],
+        "lessons": [{"id": str(l.id), "title": l.title, "url": l.url} for l in lessons],
+    }
 
 
 @router.get("/{skill_id}")
