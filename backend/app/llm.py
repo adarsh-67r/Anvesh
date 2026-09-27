@@ -25,6 +25,13 @@ async def generate(contents, config=None) -> str:
                 raise
             await asyncio.sleep(1)
 
+
+LOW_RES_VIDEO = genai.types.GenerateContentConfig(
+    thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
+    media_resolution=genai.types.MediaResolution.MEDIA_RESOLUTION_LOW,
+)
+
+
 LOW_RES_VIDEO = genai.types.GenerateContentConfig(
     thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
     media_resolution=genai.types.MediaResolution.MEDIA_RESOLUTION_LOW,
@@ -32,4 +39,8 @@ LOW_RES_VIDEO = genai.types.GenerateContentConfig(
 
 
 def parse_json(text: str):
-    """Parse a model reply that should be JSON, tolerating a
+    """Parse a model reply that should be JSON, tolerating a ``` fence."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    return json.loads(text)

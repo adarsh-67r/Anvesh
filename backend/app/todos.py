@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Skill, Todo, User
+from app.models import Todo, User
 from app.recommendation.ema import get_all_mastered_ids
+from app.trails.scope import user_skills
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
 
@@ -91,12 +92,8 @@ async def carry_forward(user: User = Depends(get_current_user), db: AsyncSession
 async def suggested_todos(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Suggest todos based on knowledge graph gaps."""
     mastered = await get_all_mastered_ids(db, str(user.id))
-    all_skills = (await db.execute(select(Skill))).scalars().all()
-    unmastered = [s for s in all_skills if s.id not in mastered]
-    return [
-        {"title": f"Study: {s.label}", "skill_id": s.id, "depth": s.depth}
-        for s in unmastered[:5]
-    ]
+    unmastered = [t for t in await user_skills(db, user.id) if t.id not in mastered]
+    return [{"title": f"Study: {t.label}", "skill_id": t.id, "depth": t.depth} for t in unmastered[:5]]
 
 
 async def _get_todo(db: AsyncSession, todo_id: UUID, user_id: UUID) -> Todo:

@@ -1,14 +1,18 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, func as sqlfunc
+from sqlalchemy import or_, select, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Skill, SkillMastery, SkillVideo, User
+from app.models import SkillMastery, SkillVideo, TrailTopic, User
 from app.recommendation import orchestrator
 from app.recommendation.event_logger import log_event
 from app.recommendation.knowledge_graph import KnowledgeGraph, SkillNode
+from app.trails.groups import expand_mastered, groups_of
+from app.trails.scope import require_topic, user_skills
 
 router = APIRouter(prefix="/api/recommend", tags=["recommendation"])
 
@@ -35,21 +39,63 @@ class EventRequest(BaseModel):
     context: dict | None = None
 
 
+def visible_lessons(skill_id: str, user_id):
+    """Imported lessons plus this student's own additions."""
+    return (
+        select(SkillVideo)
+        .where(SkillVideo.skill_id == skill_id, or_(SkillVideo.user_id.is_(None), SkillVideo.user_id == user_id))
+        .order_by(SkillVideo.display_order)
+    )
+
+
+async def build_graph(db: AsyncSession, user_id, trail_id: str | None = None) -> list[dict]:
+    topics = await user_skills(db, user_id)
+    groups = groups_of({t.id: t.equivalent_to for t in topics})
+    rows = (await db.execute(select(SkillMastery).where(SkillMastery.user_id == user_id))).scalars().all()
+    mastery = {r.skill_id: r for r in rows}
+    mastered = {r.skill_id for r in rows if r.is_mastered}
+    effective = expand_mastered(mastered, groups)
+    labels = {t.id: t.label for t in topics}
+    trail_of = {t.id: t.trail_title for t in topics}
+    ids = [t.id for t in topics]
+    counts = dict((await db.execute(
+        select(SkillVideo.skill_id, sqlfunc.count(SkillVideo.id))
+        .where(SkillVideo.skill_id.in_(ids), or_(SkillVideo.user_id.is_(None), SkillVideo.user_id == user_id))
+        .group_by(SkillVideo.skill_id)
+    )).all()) if ids else {}
+    nodes = []
+    for t in topics:
+        if trail_id and t.trail_id != trail_id:
+            continue
+        m = mastery.get(t.id)
+        nodes.append({
+            "id": t.id, "label": t.label, "depth": t.depth, "subject": t.subject, "grade": 0,
+            "prerequisites": t.prerequisites, "position": t.position, "summary": t.summary,
+            "trail_id": t.trail_id, "trail_title": t.trail_title, "source_ref": t.source_ref,
+            "equivalents": [{"id": e, "label": labels[e], "trail_title": trail_of[e]} for e in t.equivalent_to],
+            "mastery_score": round(m.mastery_score, 4) if m else 0.0,
+            "is_mastered": m.is_mastered if m else False,
+            "status": orchestrator.skill_status(t, mastered, effective),
+            "video_count": counts.get(t.id, 0),
+        })
+    return nodes
+
+
 @router.get("/next")
 async def next_skills(limit: int = 3, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     skills = await orchestrator.get_next_recommended_skills(db, str(user.id), limit)
     for skill in skills:
-        videos = (
-            await db.execute(
-                select(SkillVideo).where(SkillVideo.skill_id == skill["skill_id"]).order_by(SkillVideo.display_order)
-            )
-        ).scalars().all()
-        skill["videos"] = [{"id": str(v.id), "title": v.title, "url": v.url} for v in videos]
+        videos = (await db.execute(visible_lessons(skill["skill_id"], user.id))).scalars().all()
+        skill["videos"] = [
+            {"id": str(v.id), "title": v.title, "url": v.url, "youtube_id": v.youtube_id, "start_sec": v.start_sec, "end_sec": v.end_sec}
+            for v in videos
+        ]
     return skills
 
 
 @router.post("/answer")
 async def submit_answer(body: AnswerRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await require_topic(db, user.id, body.skill_id)
     return await orchestrator.submit_answer(
         db, str(user.id), body.skill_id, body.correct, body.question_id, body.response_time_ms
     )
@@ -78,38 +124,8 @@ async def skill_mastery(skill_id: str, user: User = Depends(get_current_user), d
 
 
 @router.get("/graph")
-async def full_graph(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    all_skills = (await db.execute(select(Skill).order_by(Skill.created_at))).scalars().all()
-    mastery_rows = (
-        await db.execute(select(SkillMastery).where(SkillMastery.user_id == user.id))
-    ).scalars().all()
-    mastery_map = {r.skill_id: r for r in mastery_rows}
-    mastered_ids = {r.skill_id for r in mastery_rows if r.is_mastered}
-
-    # Get video counts per skill
-    video_counts = dict(
-        (await db.execute(
-            select(SkillVideo.skill_id, sqlfunc.count(SkillVideo.id))
-            .group_by(SkillVideo.skill_id)
-        )).all()
-    )
-
-    nodes = []
-    for skill in all_skills:
-        m = mastery_map.get(skill.id)
-        nodes.append({
-            "id": skill.id,
-            "label": skill.label,
-            "depth": skill.depth,
-            "subject": skill.subject,
-            "grade": 0,
-            "prerequisites": skill.prerequisites or [],
-            "mastery_score": round(m.mastery_score, 4) if m else 0.0,
-            "is_mastered": m.is_mastered if m else False,
-            "status": orchestrator.skill_status(skill, mastered_ids),
-            "video_count": video_counts.get(skill.id, 0),
-        })
-    return nodes
+async def full_graph(trail_id: str | None = None, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await build_graph(db, user.id, trail_id)
 
 
 @router.post("/events")
@@ -132,26 +148,23 @@ async def log_learning_event(body: EventRequest, user: User = Depends(get_curren
 async def set_prerequisites(
     skill_id: str, body: PrerequisitesRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
-    skills = {s.id: s for s in (await db.execute(select(Skill))).scalars().all()}
-    if skill_id not in skills:
-        raise HTTPException(status_code=404, detail="Skill not found")
-    unknown = [p for p in body.prerequisites if p not in skills]
+    topic = await require_topic(db, user.id, skill_id)
+    topics = {t.id: t for t in await user_skills(db, user.id)}
+    unknown = [p for p in body.prerequisites if p not in topics]
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown prerequisites: {unknown}")
-
-    prereqs = {sid: list(s.prerequisites or []) for sid, s in skills.items()}
-    prereqs[skill_id] = list(dict.fromkeys(body.prerequisites))
+    new = list(dict.fromkeys(body.prerequisites))
     try:
-        KnowledgeGraph([SkillNode(sid, s.label, s.depth, s.subject, 0, prereqs[sid]) for sid, s in skills.items()])
+        KnowledgeGraph([
+            SkillNode(t.id, t.label, t.depth, t.subject, 0, new if t.id == skill_id else t.prerequisites)
+            for t in topics.values()
+        ])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    skill = skills[skill_id]
-    skill.prerequisites = prereqs[skill_id]
-    # ponytail: depth of skills that depend on this one is not recomputed; recompute graph-wide if chains get deep
-    skill.depth = 1 + max((skills[p].depth for p in skill.prerequisites), default=-1)
+    tt = await db.get(TrailTopic, (uuid.UUID(topic.trail_id), skill_id))
+    tt.prerequisites_override = new
     await db.commit()
-    return {"skill_id": skill_id, "prerequisites": skill.prerequisites, "depth": skill.depth}
+    return {"skill_id": skill_id, "prerequisites": new}
 
 
 @router.get("/dropout-risk")
@@ -161,10 +174,9 @@ async def dropout_risk(user: User = Depends(get_current_user), db: AsyncSession 
 
 
 @router.get("/videos/{skill_id}")
-async def skill_videos(skill_id: str, db: AsyncSession = Depends(get_db)):
-    videos = (
-        await db.execute(
-            select(SkillVideo).where(SkillVideo.skill_id == skill_id).order_by(SkillVideo.display_order)
-        )
-    ).scalars().all()
-    return [{"id": str(v.id), "title": v.title, "url": v.url, "display_order": v.display_order} for v in videos]
+async def skill_videos(skill_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await require_topic(db, user.id, skill_id)
+    videos = (await db.execute(visible_lessons(skill_id, user.id))).scalars().all()
+    return [{"id": str(v.id), "title": v.title, "url": v.url, "display_order": v.display_order,
+             "youtube_id": v.youtube_id, "start_sec": v.start_sec, "end_sec": v.end_sec, "duration": v.duration}
+            for v in videos]

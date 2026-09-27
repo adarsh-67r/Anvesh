@@ -7,9 +7,11 @@ Recommendations only include skills whose prerequisites are all mastered.
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import LearningEvent, Skill
+from app.models import LearningEvent
 from app.recommendation import bkt, ema, irt
 from app.recommendation.event_logger import log_event
+from app.trails.groups import expand_mastered, groups_of, pick_per_group
+from app.trails.scope import user_skills
 
 
 async def _response_counts(db: AsyncSession) -> dict[str, tuple[int, int]]:
@@ -44,44 +46,41 @@ def _is_mastered(score: float, phase: str, ema_flag: bool) -> bool:
     return ema_flag
 
 
-def skill_status(skill: Skill, mastered_ids: set[str]) -> str:
+def skill_status(skill, mastered_ids: set[str], effective: set[str] | None = None) -> str:
+    """mastered: this topic. covered: an equivalent topic is mastered. available: prerequisites met."""
+    eff = effective if effective is not None else mastered_ids
     if skill.id in mastered_ids:
         return "mastered"
-    if all(p in mastered_ids for p in (skill.prerequisites or [])):
+    if skill.id in eff:
+        return "covered"
+    if all(p in eff for p in (skill.prerequisites or [])):
         return "available"
     return "locked"
 
 
 async def get_next_recommended_skills(db: AsyncSession, user_id: str, limit: int = 3) -> list[dict]:
-    """Top-K skills on the learning frontier: unmastered, all prerequisites mastered.
-
-    Order: shallower skills first, then skills already in progress (closest to mastery),
-    then untouched skills.
-    """
+    """Top-K topics on the student's frontier across their trails; one per overlap group."""
+    topics = await user_skills(db, user_id)
+    groups = groups_of({t.id: t.equivalent_to for t in topics})
     mastered_ids = await ema.get_all_mastered_ids(db, user_id)
-    all_skills = (await db.execute(select(Skill))).scalars().all()
+    effective = expand_mastered(mastered_ids, groups)
     counts = await _response_counts(db)
 
     results = []
-    for skill in all_skills:
-        if skill_status(skill, mastered_ids) != "available":
+    for t in topics:
+        if skill_status(t, mastered_ids, effective) != "available":
             continue
-        score, phase = await get_mastery(db, user_id, skill.id, counts.get(skill.id, (0, 0)))
-        started = score > 0.0
+        score, phase = await get_mastery(db, user_id, t.id, counts.get(t.id, (0, 0)))
         results.append({
-            "skill_id": skill.id,
-            "label": skill.label,
-            "depth": skill.depth,
-            "subject": skill.subject,
-            "grade": 0,
-            "prerequisites": skill.prerequisites or [],
-            "mastery_score": round(score, 4),
-            "phase": phase,
-            "reason": "In progress" if started else ("Prerequisites complete" if skill.prerequisites else "Not started"),
+            "skill_id": t.id, "label": t.label, "depth": t.depth, "subject": t.subject, "grade": 0,
+            "prerequisites": t.prerequisites, "mastery_score": round(score, 4), "phase": phase,
+            "trail_id": t.trail_id, "trail_title": t.trail_title, "position": t.position,
+            "reason": "In progress" if score > 0 else ("Prerequisites complete" if t.prerequisites else "Not started"),
         })
 
-    results.sort(key=lambda r: (r["depth"], r["mastery_score"] == 0.0, -r["mastery_score"]))
-    return results[:limit]
+    results.sort(key=lambda r: (r["depth"], r["mastery_score"] == 0.0, -r["mastery_score"], r["position"]))
+    keep = set(pick_per_group([r["skill_id"] for r in results], groups))
+    return [r for r in results if r["skill_id"] in keep][:limit]
 
 
 async def get_dropout_risk(db: AsyncSession, user_id: str) -> float:
