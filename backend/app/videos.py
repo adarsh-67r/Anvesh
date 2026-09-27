@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Skill, SkillVideo, User
+from app.trails.scope import require_topic
+from app.trails.youtube import parse_ref
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
@@ -19,44 +21,10 @@ YOUTUBE_PLAYLIST_RE = re.compile(r"[?&]list=([a-zA-Z0-9_-]+)")
 _executor = ThreadPoolExecutor(max_workers=2)
 
 
-def _extract_playlist(url: str) -> dict:
-    """Use yt-dlp to extract playlist title + video entries."""
-    try:
-        import yt_dlp
-    except ImportError:
-        return {"title": "", "entries": []}
-    opts = {"quiet": True, "extract_flat": True, "no_warnings": True}
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-        if not info:
-            return {"title": "", "entries": []}
-        entries = [
-            {"id": e["id"], "title": e.get("title") or e["id"], "url": f"https://www.youtube.com/watch?v={e['id']}"}
-            for e in (info.get("entries") or []) if e and e.get("id")
-        ]
-        return {"title": info.get("title", ""), "entries": entries}
-
-
-def _slugify(title: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
-    return slug[:100] if slug else "untitled"
-
-
 class AddVideoRequest(BaseModel):
     skill_id: str = ""
     url: str
     title: str = ""
-
-
-async def _ensure_skill(db: AsyncSession, skill_id: str, label: str, source_url: str = "") -> Skill:
-    """Create skill if it doesn't exist, return it."""
-    existing = (await db.execute(select(Skill).where(Skill.id == skill_id))).scalar_one_or_none()
-    if existing:
-        return existing
-    skill = Skill(id=skill_id, label=label, source_url=source_url or None)
-    db.add(skill)
-    await db.flush()
-    return skill
 
 
 # ponytail: in-process cache of YouTube metadata; a restart re-fetches, fine at demo scale
@@ -120,44 +88,14 @@ async def get_videos(skill_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("")
 async def add_video(body: AddVideoRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    is_playlist = bool(YOUTUBE_PLAYLIST_RE.search(body.url))
-
-    if is_playlist:
-        loop = asyncio.get_event_loop()
-        data = await loop.run_in_executor(_executor, _extract_playlist, body.url)
-        entries = data["entries"]
-        playlist_title = data["title"]
-        if not entries:
-            raise HTTPException(status_code=400, detail="Could not extract videos from playlist")
-
-        skill_id = body.skill_id or _slugify(playlist_title)
-        label = body.title or playlist_title or skill_id
-        await _ensure_skill(db, skill_id, label, body.url)
-
-        existing = (
-            await db.execute(
-                select(SkillVideo).where(SkillVideo.skill_id == skill_id, SkillVideo.user_id == user.id)
-            )
-        ).scalars().all()
-        existing_urls = {v.url for v in existing}
-        offset = len(existing)
-
-        added = []
-        for i, e in enumerate(entries):
-            if e["url"] not in existing_urls:
-                db.add(SkillVideo(
-                    skill_id=skill_id, user_id=user.id,
-                    title=e["title"], url=e["url"], display_order=offset + i,
-                ))
-                added.append(e["title"])
-        await db.commit()
-        return {"skill_id": skill_id, "skill_label": label, "added": len(added), "total_in_playlist": len(entries)}
-
-    # Single video
+    if YOUTUBE_PLAYLIST_RE.search(body.url):
+        raise HTTPException(status_code=400, detail="Add playlists from a trail's Sources section")
     if not body.skill_id:
-        raise HTTPException(status_code=400, detail="skill_id required for single videos")
-
-    await _ensure_skill(db, body.skill_id, body.skill_id)
+        raise HTTPException(status_code=400, detail="skill_id required")
+    await require_topic(db, user.id, body.skill_id)
+    ref = parse_ref(body.url)
+    if not ref or ref[0] != "video":
+        raise HTTPException(status_code=400, detail="Paste a YouTube video link")
 
     existing = (
         await db.execute(
@@ -166,7 +104,7 @@ async def add_video(body: AddVideoRequest, user: User = Depends(get_current_user
     ).scalars().all()
 
     video = SkillVideo(
-        skill_id=body.skill_id, user_id=user.id,
+        skill_id=body.skill_id, user_id=user.id, youtube_id=ref[1],
         title=body.title or body.url, url=body.url,
         display_order=len(existing),
     )

@@ -20,6 +20,7 @@ from app.game import router as game_router
 from app.recommendation.router import router as recommend_router
 from app.study_groups import router as groups_router
 from app.todos import router as todos_router
+from app.trails.router import router as trails_router, topics_router
 from app.videos import router as videos_router
 
 app.include_router(auth_router)
@@ -31,6 +32,8 @@ app.include_router(todos_router)
 app.include_router(groups_router)
 app.include_router(game_router)
 app.include_router(attachments_router)
+app.include_router(trails_router)
+app.include_router(topics_router)
 
 
 @app.get("/api/health")

@@ -1,6 +1,7 @@
 import pytest
 
-from app.trails.plan import Item, chunk_plan, validate_plan
+from app.trails.importer import topic_rows
+from app.trails.plan import Item, PlannedTopic, chunk_plan, validate_plan
 
 ITEMS = [Item(f"v{i}", f"Lecture {i}", 600) for i in range(10)]
 
@@ -72,3 +73,16 @@ def test_chunk_plan_covers_everything_in_order():
     plan = chunk_plan(ITEMS)
     assert [t.items for t in plan] == [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9]]
     assert plan[1].prerequisites == [0] and plan[0].title == "Lecture 0"
+
+
+def test_topic_rows_ids_order_and_ranges():
+    items = [Item("aaaaaaaaaaa", "Intro", 300), Item("bbbbbbbbbbb", "Graphs course", 7200, 0, 2530, "BFS"),
+             Item("bbbbbbbbbbb", "Graphs course", 7200, 2530, 3900, "DFS")]
+    plan = [PlannedTopic("Basics", "s", [0]), PlannedTopic("Graphs", "g", [1, 2], prerequisites=[0])]
+    skills, lessons = topic_rows("PLx", 2, items, plan)
+    assert [s["id"] for s in skills] == ["PLx:v2:0", "PLx:v2:1"]
+    assert skills[1]["prerequisites"] == ["PLx:v2:0"]
+    assert lessons[2] == {"skill_id": "PLx:v2:1", "user_id": None, "title": "DFS · Graphs course",
+                          "url": "https://www.youtube.com/watch?v=bbbbbbbbbbb&t=2530s", "youtube_id": "bbbbbbbbbbb",
+                          "start_sec": 2530, "end_sec": 3900, "duration": 7200, "display_order": 1}
+    assert all(len(s["id"]) <= 100 for s in skills)
