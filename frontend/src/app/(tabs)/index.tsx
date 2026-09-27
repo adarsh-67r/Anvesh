@@ -1,277 +1,197 @@
-import { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
-} from "react-native";
+import { useCallback, useState, type ComponentProps } from "react";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Link, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, type Href } from "expo-router";
 import { api, StudyStatus } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { ScreenHeader } from "../../components/Sidebar";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
-type Skill = {
+type Recommendation = {
   skill_id: string;
   label: string;
   mastery_score: number;
   reason: string;
+  prerequisites: string[];
   videos: { id: string; title: string; url: string }[];
 };
-
-type Todo = {
-  id: string;
-  title: string;
-  is_done: boolean;
-  due_date: string | null;
-};
-
+type GraphNode = { id: string; label: string; status: "mastered" | "available" | "locked" };
+type Todo = { id: string; is_done: boolean };
 type DropoutRisk = { risk_score: number; risk_level: string };
+type IconName = ComponentProps<typeof MaterialIcons>["name"];
 
-export default function DashboardScreen() {
-  const [skills, setSkills] = useState<Skill[]>([]);
+const pct = (x: number) => Math.round(x * 100);
+
+function whyThis(r: Recommendation): string {
+  if (r.mastery_score > 0) return `You're ${pct(r.mastery_score)}% there. Keep the streak going.`;
+  if (r.prerequisites.length) return "You've mastered its prerequisites, so it's ready for you.";
+  return "A foundation skill. The best place to start.";
+}
+
+export default function TodayScreen() {
+  const { user } = useAuth();
+  const [recs, setRecs] = useState<Recommendation[]>([]);
+  const [graph, setGraph] = useState<GraphNode[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [mastery, setMastery] = useState<{ mastery_score: number; is_mastered: boolean }[]>([]);
-  const [dropout, setDropout] = useState<DropoutRisk | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [dueCards, setDueCards] = useState(0);
   const [study, setStudy] = useState<StudyStatus | null>(null);
+  const [dropout, setDropout] = useState<DropoutRisk | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    try {
-      const [s, t, m, d] = await Promise.all([
-        api.get<Skill[]>("/api/recommend/next?limit=3"),
-        api.get<Todo[]>("/api/todos"),
-        api.get<{ mastery_score: number; is_mastered: boolean }[]>("/api/recommend/mastery"),
-        api.get<DropoutRisk>("/api/recommend/dropout-risk").catch(() => null),
-      ]);
-      api.get<StudyStatus>("/api/game/status").then(setStudy).catch(() => {});
-      setSkills(s);
-      setTodos(t);
-      setMastery(m);
-      if (d) setDropout(d);
-    } catch {}
+    const [r, g, t, c, s, d] = await Promise.all([
+      api.get<Recommendation[]>("/api/recommend/next?limit=3").catch(() => []),
+      api.get<GraphNode[]>("/api/recommend/graph").catch(() => []),
+      api.get<Todo[]>("/api/todos").catch(() => []),
+      api.get<unknown[]>("/api/flashcards/due").catch(() => []),
+      api.get<StudyStatus>("/api/game/status").catch(() => null),
+      api.get<DropoutRisk>("/api/recommend/dropout-risk").catch(() => null),
+    ]);
+    setRecs(r);
+    setGraph(g);
+    setTodos(t);
+    setDueCards(c.length);
+    setStudy(s);
+    setDropout(d);
+    setLoaded(true);
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const overallMastery = mastery.length
-    ? Math.round((mastery.reduce((a, b) => a + b.mastery_score, 0) / mastery.length) * 100)
-    : 0;
-  const masteredCount = mastery.filter((m) => m.is_mastered).length;
-  const dueTodos = todos.filter((t) => !t.is_done).slice(0, 3);
-  const doneCount = todos.filter((t) => t.is_done).length;
-  const studyMins = study?.study_minutes ?? 0;
-  const studyGoal = 120;
+  const hero = recs[0];
+  const upNext = recs.slice(1);
+  const mastered = graph.filter((n) => n.status === "mastered").length;
+  const openTasks = todos.filter((t) => !t.is_done).length;
+  const minutesLeft = study ? Math.max(0, study.required_minutes - study.study_minutes) : null;
+  const firstName = (user?.name || "").split(" ")[0];
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+  const atRisk = dropout && !dropout.risk_level.toLowerCase().includes("low");
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  };
-
-  const toggleTodo = async (todo: Todo) => {
-    try {
-      await api.put(`/api/todos/${todo.id}`, { is_done: !todo.is_done });
-      setTodos((prev) =>
-        prev.map((t) => (t.id === todo.id ? { ...t, is_done: !t.is_done } : t))
-      );
-    } catch {}
-  };
-
-  const isLowRisk = !dropout || dropout.risk_level?.toLowerCase().includes("low");
+  const tiles: { icon: IconName; value: string; label: string; href: Href; tint: string; bg: string }[] = [
+    { icon: "style", value: String(dueCards), label: dueCards === 1 ? "card to review" : "cards to review", href: "/cards", tint: colors.secondaryDark, bg: colors.secondaryLight },
+    {
+      icon: study?.unlocked ? "lock-open" : "timer",
+      value: study?.unlocked ? "Open" : `${minutesLeft ?? "–"}m`,
+      label: study?.unlocked ? "quiz games" : "focus to unlock quiz",
+      href: "/pomodoro",
+      tint: colors.primary,
+      bg: colors.primaryLight,
+    },
+    { icon: "checklist", value: String(openTasks), label: openTasks === 1 ? "task open" : "tasks open", href: "/todos", tint: colors.tertiaryDark, bg: colors.tertiaryLight },
+  ];
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader title={firstName ? `Hi, ${firstName}` : "Today"} subtitle={today} />
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {/* Header with streak + XP badges */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Welcome back</Text>
-            <Text style={styles.appName}>Anvesh</Text>
-          </View>
-          <View style={styles.badgeRow}>
-            <View style={styles.streakBadge}>
-              <MaterialIcons name="local-fire-department" size={14} color={colors.primary} />
-              <Text style={styles.streakText}>Active</Text>
+        {/* Hero: the recommendation engine's pick */}
+        {hero ? (
+          <View style={styles.hero}>
+            <Text style={styles.heroEyebrow}>STUDY NEXT</Text>
+            <Text style={styles.heroTitle} numberOfLines={2}>{hero.label}</Text>
+            <Text style={styles.heroWhy}>{whyThis(hero)}</Text>
+            <View style={styles.heroBar}>
+              <View style={[styles.heroBarFill, { width: `${pct(hero.mastery_score)}%` }]} />
             </View>
-            <View style={[styles.streakBadge, { backgroundColor: colors.tertiaryLight }]}>
-              <MaterialIcons name="bolt" size={14} color={colors.tertiaryDark} />
-              <Text style={[styles.streakText, { color: colors.tertiaryDark }]}>+75 XP</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{overallMastery}%</Text>
-            <Text style={styles.statLabel}>Mastery</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{masteredCount}</Text>
-            <Text style={styles.statLabel}>Mastered</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{todos.filter((t) => !t.is_done).length}</Text>
-            <Text style={styles.statLabel}>Due Tasks</Text>
-          </View>
-        </View>
-
-        {/* Dropout Risk */}
-        {dropout && (
-          <View style={[styles.riskCard, { borderColor: isLowRisk ? colors.tertiary : colors.error }]}>
-            <MaterialIcons
-              name={isLowRisk ? "verified-user" : "warning"}
-              size={20}
-              color={isLowRisk ? colors.tertiary : colors.error}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.riskLevel, { color: isLowRisk ? colors.tertiary : colors.error }]}>
-                {dropout.risk_level} ({Math.round(dropout.risk_score * 100)}%)
+            <View style={styles.heroFooter}>
+              <Text style={styles.heroMeta}>
+                {pct(hero.mastery_score)}% mastered{hero.videos.length ? ` · ${hero.videos.length} lessons` : ""}
               </Text>
-              <Text style={styles.riskDesc}>
-                {isLowRisk
-                  ? "Consistent practice keeps your retention strong."
-                  : "Try completing a few more study sessions this week."}
-              </Text>
+              <TouchableOpacity
+                style={styles.heroBtn}
+                onPress={() => router.push(`/skill/${hero.skill_id}`)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.heroBtnText}>{hero.mastery_score > 0 ? "Continue" : "Start"}</Text>
+                <MaterialIcons name="arrow-forward" size={18} color={colors.primary} />
+              </TouchableOpacity>
             </View>
           </View>
+        ) : loaded ? (
+          <View style={[styles.hero, styles.heroEmpty]}>
+            <MaterialIcons name={graph.length ? "emoji-events" : "playlist-add"} size={32} color="#FFFFFF" />
+            <Text style={styles.heroTitle}>{graph.length ? "Everything available is mastered" : "Add your first topic"}</Text>
+            <Text style={styles.heroWhy}>
+              {graph.length
+                ? "Add a new topic or review your flashcards to stay sharp."
+                : "Paste a YouTube playlist and Anvesh builds your learning path."}
+            </Text>
+            <TouchableOpacity style={styles.heroBtn} onPress={() => router.push("/add-content")}>
+              <Text style={styles.heroBtnText}>Add topic</Text>
+              <MaterialIcons name="add" size={18} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {/* Other recommendations */}
+        {upNext.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Up next</Text>
+            {upNext.map((r) => (
+              <TouchableOpacity key={r.skill_id} style={styles.row} onPress={() => router.push(`/skill/${r.skill_id}`)}>
+                <View style={styles.rowIcon}>
+                  <MaterialIcons name="bolt" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{r.label}</Text>
+                  <Text style={styles.rowMeta}>{pct(r.mastery_score)}% mastered</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </>
         )}
 
-        {/* Recommended Skills */}
-        <Text style={styles.sectionTitle}>Recommended Next</Text>
-        {skills.map((skill) => (
-          <Link href={`/skill/${skill.skill_id}`} key={skill.skill_id} asChild>
-            <TouchableOpacity style={styles.skillCard} activeOpacity={0.7}>
-              <View style={styles.skillHeader}>
-                <MaterialIcons name="bolt" size={20} color={colors.secondary} />
-                <Text style={styles.skillLabel} numberOfLines={1}>
-                  {skill.label}
-                </Text>
-              </View>
-              <View style={styles.progressBarBg}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${Math.round(skill.mastery_score * 100)}%`,
-                      backgroundColor:
-                        skill.mastery_score >= 0.8 ? colors.tertiary : colors.secondary,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.skillMeta}>
-                {Math.round(skill.mastery_score * 100)}% mastery
-              </Text>
+        {loaded && (
+        <>
+        {/* Today's tools, each one tap away */}
+        <Text style={styles.sectionTitle}>Today</Text>
+        <View style={styles.tiles}>
+          {tiles.map((t) => (
+            <TouchableOpacity key={t.label} style={[styles.tile, { backgroundColor: t.bg }]} onPress={() => router.push(t.href)}>
+              <MaterialIcons name={t.icon} size={20} color={t.tint} />
+              <Text style={[styles.tileValue, { color: t.tint }]}>{t.value}</Text>
+              <Text style={styles.tileLabel}>{t.label}</Text>
             </TouchableOpacity>
-          </Link>
-        ))}
+          ))}
+        </View>
 
-        {/* Today's Progress */}
-        <Text style={styles.sectionTitle}>{"Today's Progress"}</Text>
-        <View style={styles.progressCard}>
-          <View style={styles.progressGrid}>
-            <View style={styles.progressItem}>
-              <MaterialIcons name="schedule" size={18} color={colors.primary} />
-              <Text style={styles.progressValue}>
-                {studyMins >= 60 ? `${Math.floor(studyMins / 60)}h ${studyMins % 60}m` : `${studyMins}m`}
-              </Text>
-              <Text style={styles.progressLabel}>Focused</Text>
-            </View>
-            <View style={styles.progressItem}>
-              <MaterialIcons name="check-circle" size={18} color={colors.tertiary} />
-              <Text style={styles.progressValue}>{doneCount}/{todos.length}</Text>
-              <Text style={styles.progressLabel}>Tasks</Text>
-            </View>
-            <View style={styles.progressItem}>
-              <MaterialIcons name="bolt" size={18} color="#D97706" />
-              <Text style={styles.progressValue}>+75</Text>
-              <Text style={styles.progressLabel}>XP</Text>
-            </View>
-          </View>
-          <View style={styles.goalRow}>
-            <Text style={styles.goalText}>Daily Target</Text>
-            <Text style={[styles.goalText, { color: colors.primary }]}>
-              {studyMins} / {studyGoal} min
+        {/* Progress */}
+        <TouchableOpacity style={styles.progressCard} onPress={() => router.push("/learn")}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.progressTitle}>Your path</Text>
+            <Text style={styles.progressMeta}>
+              {mastered} of {graph.length} skills mastered
             </Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: graph.length ? `${(mastered / graph.length) * 100}%` : "0%" }]} />
+            </View>
           </View>
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBarFill,
-                {
-                  width: `${Math.min(100, Math.round((studyMins / studyGoal) * 100))}%`,
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            />
-          </View>
-        </View>
+          <MaterialIcons name="chevron-right" size={24} color={colors.textMuted} />
+        </TouchableOpacity>
 
-        {/* Due Today */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>Due Today</Text>
-          <Link href="/todos" asChild>
-            <TouchableOpacity hitSlop={8}>
-              <Text style={styles.viewAll}>View All</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
-        {dueTodos.length === 0 && (
-          <Text style={styles.emptyText}>All caught up!</Text>
+        </>
         )}
-        {dueTodos.map((todo) => (
-          <TouchableOpacity
-            key={todo.id}
-            style={styles.todoItem}
-            onPress={() => toggleTodo(todo)}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons
-              name={todo.is_done ? "check-circle" : "radio-button-unchecked"}
-              size={22}
-              color={todo.is_done ? colors.tertiary : colors.textMuted}
-            />
-            <Text
-              style={[styles.todoText, todo.is_done && styles.todoDone]}
-              numberOfLines={1}
-            >
-              {todo.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
 
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <Link href="/add-content" asChild>
-            <TouchableOpacity style={styles.quickBtn} activeOpacity={0.7}>
-              <MaterialIcons name="video-library" size={20} color={colors.primary} />
-              <Text style={styles.quickBtnText}>Add Content</Text>
-            </TouchableOpacity>
-          </Link>
-          <Link href="/pomodoro" asChild>
-            <TouchableOpacity style={styles.quickBtn} activeOpacity={0.7}>
-              <MaterialIcons name="timer" size={20} color={colors.primary} />
-              <Text style={styles.quickBtnText}>Pomodoro</Text>
-            </TouchableOpacity>
-          </Link>
-          <Link href="/(tabs)/chat" asChild>
-            <TouchableOpacity style={styles.quickBtn} activeOpacity={0.7}>
-              <MaterialIcons name="smart-toy" size={20} color={colors.primary} />
-              <Text style={styles.quickBtnText}>AI Tutor</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
+        {atRisk && (
+          <View style={styles.riskCard}>
+            <MaterialIcons name="warning-amber" size={20} color={colors.error} />
+            <Text style={styles.riskText}>
+              You haven&apos;t studied in a while. A short focus session today keeps your progress from slipping.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -279,105 +199,81 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
-  greeting: { ...typography.bodyMd, color: colors.textSecondary },
-  appName: { ...typography.headlineLg, color: colors.text },
-  badgeRow: { flexDirection: "row", gap: 6 },
-  streakBadge: {
+  scroll: { padding: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  hero: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.xxl,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  heroEmpty: { alignItems: "flex-start" },
+  heroEyebrow: { ...typography.labelSm, color: "rgba(255,255,255,0.75)", letterSpacing: 1.5 },
+  heroTitle: { ...typography.headlineLg, color: "#FFFFFF" },
+  heroWhy: { ...typography.bodyMd, color: "rgba(255,255,255,0.85)" },
+  heroBar: { height: 6, borderRadius: radii.full, backgroundColor: "rgba(255,255,255,0.25)", marginTop: spacing.sm, overflow: "hidden" },
+  heroBarFill: { height: "100%", backgroundColor: "#FFFFFF", borderRadius: radii.full },
+  heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  heroMeta: { ...typography.bodySm, color: "rgba(255,255,255,0.85)" },
+  heroBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: spacing.xs,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
     borderRadius: radii.full,
+    marginTop: spacing.xs,
   },
-  streakText: { ...typography.labelMd, color: colors.primary },
-  statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surfaceWhite,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: { ...typography.headlineMd, color: colors.text },
-  statLabel: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
-  riskCard: {
+  heroBtnText: { ...typography.labelLg, color: colors.primary },
+  sectionTitle: { ...typography.headlineSm, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.sm },
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
     backgroundColor: colors.surfaceWhite,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
     borderWidth: 1,
-  },
-  riskLevel: { ...typography.labelMd },
-  riskDesc: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
-  sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.md, marginBottom: spacing.sm },
-  sectionTitle: { ...typography.headlineSm, color: colors.text, marginBottom: spacing.sm, marginTop: spacing.md },
-  viewAll: { ...typography.labelMd, color: colors.primary },
-  skillCard: {
-    backgroundColor: colors.surfaceWhite,
+    borderColor: colors.border,
     borderRadius: radii.xl,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  skillHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
-  skillLabel: { ...typography.titleMd, color: colors.text, flex: 1 },
-  progressBarBg: { height: 8, backgroundColor: colors.border, borderRadius: radii.full },
-  progressBarFill: { height: 8, borderRadius: radii.full },
-  skillMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs },
-  progressCard: {
-    backgroundColor: colors.surfaceWhite,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  progressGrid: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  progressItem: {
-    flex: 1,
-    alignItems: "center",
-    backgroundColor: colors.surface,
+  rowIcon: {
+    width: 36,
+    height: 36,
     borderRadius: radii.lg,
-    padding: spacing.sm,
-    gap: 2,
-  },
-  progressValue: { ...typography.titleMd, color: colors.text },
-  progressLabel: { ...typography.bodySm, color: colors.textSecondary },
-  goalRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.xs },
-  goalText: { ...typography.bodySm, color: colors.textSecondary },
-  emptyText: { ...typography.bodyMd, color: colors.textMuted, marginBottom: spacing.sm },
-  todoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceWhite,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  todoText: { ...typography.bodyMd, color: colors.text, flex: 1 },
-  todoDone: { textDecorationLine: "line-through", color: colors.textMuted },
-  quickActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
-  quickBtn: {
-    flex: 1,
-    flexDirection: "row",
+    backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primaryLight,
-    borderRadius: radii.lg,
-    paddingVertical: 14,
   },
-  quickBtnText: { ...typography.labelLg, color: colors.primary },
+  rowTitle: { ...typography.titleMd, color: colors.text },
+  rowMeta: { ...typography.bodySm, color: colors.textSecondary },
+  tiles: { flexDirection: "row", gap: spacing.sm },
+  tile: { flex: 1, borderRadius: radii.xl, padding: spacing.md, gap: 2, minHeight: 110 },
+  tileValue: { ...typography.headlineMd, marginTop: spacing.xs },
+  tileLabel: { ...typography.bodySm, color: colors.textSecondary },
+  progressCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surfaceWhite,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+  progressTitle: { ...typography.titleMd, color: colors.text },
+  progressMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  progressBar: { height: 6, borderRadius: radii.full, backgroundColor: colors.locked, marginTop: spacing.sm, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: radii.full, backgroundColor: colors.tertiary },
+  riskCard: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    alignItems: "flex-start",
+    backgroundColor: colors.errorLight,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  riskText: { ...typography.bodyMd, color: colors.error, flex: 1 },
 });
