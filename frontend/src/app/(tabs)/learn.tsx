@@ -1,116 +1,148 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Link, useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { api } from "../../lib/api";
+import { ScreenHeader } from "../../components/Sidebar";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 
+type Status = "mastered" | "available" | "locked";
 type GraphNode = {
   id: string;
   label: string;
-  depth: number;
-  subject: string;
-  grade: string;
   prerequisites: string[];
   mastery_score: number;
-  is_mastered: boolean;
-  status: "mastered" | "available" | "locked";
+  status: Status;
+  video_count: number;
 };
 
-const STATUS_CONFIG = {
-  mastered: { bg: colors.tertiaryLight, border: "#A7F3D0", icon: "check-circle" as const, iconColor: colors.tertiary },
-  available: { bg: colors.surfaceWhite, border: colors.secondary, icon: "bolt" as const, iconColor: colors.secondary },
-  locked: { bg: colors.locked, border: colors.borderMuted, icon: "lock" as const, iconColor: colors.textMuted },
+const STATUS = {
+  mastered: { label: "Mastered", icon: "check-circle" as const, fg: colors.tertiaryDark, bg: colors.tertiaryLight, border: colors.tertiary },
+  available: { label: "Ready", icon: "play-circle" as const, fg: colors.primary, bg: colors.surfaceWhite, border: colors.primary },
+  locked: { label: "Locked", icon: "lock" as const, fg: colors.textMuted, bg: colors.locked, border: colors.border },
 };
 
-export default function LearnScreen() {
+/** Level = length of the longest prerequisite chain below a skill (foundations are level 0). */
+function levelsOf(nodes: GraphNode[]): GraphNode[][] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const memo = new Map<string, number>();
+  const level = (id: string, seen: Set<string>): number => {
+    if (memo.has(id)) return memo.get(id)!;
+    if (seen.has(id)) return 0; // cycles are rejected server-side; guard anyway
+    seen.add(id);
+    const prereqs = byId.get(id)?.prerequisites.filter((p) => byId.has(p)) ?? [];
+    const l = prereqs.length ? 1 + Math.max(...prereqs.map((p) => level(p, seen))) : 0;
+    memo.set(id, l);
+    return l;
+  };
+  const tiers: GraphNode[][] = [];
+  for (const n of nodes) (tiers[level(n.id, new Set())] ??= []).push(n);
+  return tiers.filter(Boolean);
+}
+
+export default function PathScreen() {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<"all" | "mastered" | "available" | "locked">("all");
 
   const load = useCallback(async () => {
-    try {
-      const data = await api.get<GraphNode[]>("/api/recommend/graph");
-      setNodes(data);
-    } catch {}
+    setNodes(await api.get<GraphNode[]>("/api/recommend/graph").catch(() => []));
+    setLoaded(true);
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const filtered = filter === "all" ? nodes : nodes.filter((n) => n.status === filter);
-  const counts = {
-    mastered: nodes.filter((n) => n.status === "mastered").length,
-    available: nodes.filter((n) => n.status === "available").length,
-    locked: nodes.filter((n) => n.status === "locked").length,
-  };
+  const tiers = useMemo(() => levelsOf(nodes), [nodes]);
+  const labelOf = (id: string) => nodes.find((n) => n.id === id)?.label ?? id;
+  const count = (s: Status) => nodes.filter((n) => n.status === s).length;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <View style={styles.titleRow}>
-        <Text style={styles.title}>Skill Graph</Text>
-        <Text style={styles.subtitle}>Prerequisites & Roadmap</Text>
-      </View>
-
-      {/* Filter pills */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.sm }}>
-        {(["all", "mastered", "available", "locked"] as const).map((f) => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.pill, filter === f && styles.pillActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.pillText, filter === f && styles.pillTextActive]}>
-              {f === "all" ? `All (${nodes.length})` : `${f.charAt(0).toUpperCase() + f.slice(1)} (${counts[f]})`}
-            </Text>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScreenHeader
+        title="My Path"
+        subtitle={`${count("mastered")} of ${nodes.length} skills mastered`}
+        right={
+          <TouchableOpacity onPress={() => router.push("/add-content")} accessibilityLabel="Add a topic" hitSlop={8}>
+            <MaterialIcons name="playlist-add" size={28} color={colors.primary} />
           </TouchableOpacity>
-        ))}
-      </ScrollView>
-
+        }
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} colors={[colors.primary]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {filtered.map((node) => {
-          const cfg = STATUS_CONFIG[node.status];
-          const card = (
-            <View
-              key={node.id}
-              style={[styles.nodeCard, { backgroundColor: cfg.bg, borderColor: cfg.border }]}
-            >
-              <View style={styles.nodeHeader}>
-                <MaterialIcons name={cfg.icon} size={22} color={cfg.iconColor} />
-                <Text style={[styles.nodeLabel, node.status === "locked" && styles.lockedText]} numberOfLines={1}>
-                  {node.label}
-                </Text>
-                <Text style={styles.nodeMastery}>
-                  {Math.round(node.mastery_score * 100)}%
-                </Text>
+        {nodes.length > 0 && (
+          <View style={styles.legend}>
+            {(Object.keys(STATUS) as Status[]).map((s) => (
+              <View key={s} style={styles.legendItem}>
+                <MaterialIcons name={STATUS[s].icon} size={16} color={STATUS[s].border} />
+                <Text style={styles.legendText}>{STATUS[s].label} · {count(s)}</Text>
               </View>
-              <View style={styles.progressBarBg}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${Math.round(node.mastery_score * 100)}%`,
-                      backgroundColor: node.status === "mastered" ? colors.tertiary : colors.secondary,
-                    },
-                  ]}
-                />
-              </View>
-              {node.subject ? (
-                <Text style={styles.nodeMeta}>{node.subject} • {node.grade}</Text>
-              ) : null}
-            </View>
-          );
+            ))}
+          </View>
+        )}
 
-          if (node.status === "locked") return card;
-          return (
-            <Link href={`/skill/${node.id}`} key={node.id} asChild>
-              <TouchableOpacity activeOpacity={0.7}>{card}</TouchableOpacity>
-            </Link>
-          );
-        })}
+        {loaded && nodes.length === 0 && (
+          <View style={styles.empty}>
+            <MaterialIcons name="account-tree" size={48} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>Your path is empty</Text>
+            <Text style={styles.emptyText}>Add a YouTube playlist as a topic, then link topics with prerequisites to build your map.</Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={() => router.push("/add-content")}>
+              <Text style={styles.emptyBtnText}>Add topic</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {tiers.map((tier, i) => (
+          <View key={i}>
+            {i > 0 && (
+              <View style={styles.connector}>
+                <View style={styles.connectorLine} />
+                <MaterialIcons name="keyboard-arrow-down" size={20} color={colors.borderMuted} />
+              </View>
+            )}
+            <Text style={styles.levelLabel}>{i === 0 ? "FOUNDATIONS" : `LEVEL ${i}`}</Text>
+            {tier.map((n) => {
+              const st = STATUS[n.status];
+              const missing = n.prerequisites.filter((p) => nodes.find((x) => x.id === p)?.status !== "mastered");
+              return (
+                <TouchableOpacity
+                  key={n.id}
+                  style={[styles.node, { backgroundColor: st.bg, borderColor: st.border }]}
+                  onPress={() => router.push(`/skill/${n.id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${n.label}, ${st.label}, ${Math.round(n.mastery_score * 100)} percent`}
+                >
+                  <MaterialIcons name={st.icon} size={24} color={st.border} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.nodeTitle, n.status === "locked" && { color: colors.textSecondary }]} numberOfLines={2}>
+                      {n.label}
+                    </Text>
+                    {n.status === "locked" && missing.length > 0 ? (
+                      <Text style={styles.nodeMeta} numberOfLines={2}>Needs: {missing.map(labelOf).join(", ")}</Text>
+                    ) : (
+                      <View style={styles.nodeBarRow}>
+                        <View style={styles.nodeBar}>
+                          <View style={[styles.nodeBarFill, { width: `${Math.round(n.mastery_score * 100)}%`, backgroundColor: st.border }]} />
+                        </View>
+                        <Text style={styles.nodeMeta}>{Math.round(n.mastery_score * 100)}%</Text>
+                      </View>
+                    )}
+                    {n.video_count > 0 && <Text style={styles.nodeLessons}>{n.video_count} lessons</Text>}
+                  </View>
+                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -118,33 +150,31 @@ export default function LearnScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  titleRow: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  title: { ...typography.headlineLg, color: colors.text },
-  subtitle: { ...typography.bodyMd, color: colors.textSecondary },
-  filterRow: { marginTop: spacing.md, marginBottom: spacing.sm, maxHeight: 40 },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: radii.full,
-    backgroundColor: colors.surfaceWhite,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { ...typography.labelMd, color: colors.textSecondary },
-  pillTextActive: { color: "#FFFFFF" },
-  scroll: { padding: spacing.md, paddingBottom: spacing.xl },
-  nodeCard: {
+  scroll: { padding: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginBottom: spacing.md },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendText: { ...typography.labelMd, color: colors.textSecondary },
+  levelLabel: { ...typography.labelSm, color: colors.textSecondary, letterSpacing: 1.2, marginBottom: spacing.sm },
+  connector: { alignItems: "center", marginVertical: spacing.xs },
+  connectorLine: { width: 2, height: 16, backgroundColor: colors.borderMuted },
+  node: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1.5,
     borderRadius: radii.xl,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
   },
-  nodeHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
-  nodeLabel: { ...typography.titleMd, color: colors.text, flex: 1 },
-  lockedText: { color: colors.textMuted },
-  nodeMastery: { ...typography.labelLg, color: colors.textSecondary },
-  progressBarBg: { height: 8, backgroundColor: colors.border, borderRadius: radii.full },
-  progressBarFill: { height: 8, borderRadius: radii.full },
-  nodeMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs },
+  nodeTitle: { ...typography.titleMd, color: colors.text },
+  nodeBarRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.xs },
+  nodeBar: { flex: 1, height: 6, borderRadius: radii.full, backgroundColor: "rgba(148,163,184,0.25)", overflow: "hidden" },
+  nodeBarFill: { height: "100%", borderRadius: radii.full },
+  nodeMeta: { ...typography.bodySm, color: colors.textSecondary, marginTop: 2 },
+  nodeLessons: { ...typography.bodySm, color: colors.textMuted, marginTop: 2 },
+  empty: { alignItems: "center", gap: spacing.sm, paddingTop: 80, paddingHorizontal: spacing.lg },
+  emptyTitle: { ...typography.headlineSm, color: colors.text },
+  emptyText: { ...typography.bodyMd, color: colors.textSecondary, textAlign: "center" },
+  emptyBtn: { marginTop: spacing.sm, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 12, borderRadius: radii.full },
+  emptyBtnText: { ...typography.labelLg, color: "#FFFFFF" },
 });
