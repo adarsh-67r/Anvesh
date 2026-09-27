@@ -45,12 +45,14 @@ async def _latest_plan(db, ref: str) -> TopicPlan | None:
 
 
 async def _build_plan(db, src: Source, existing: list[tuple[str, str]]) -> tuple[int, list[PlannedTopic], list[Item], str, str]:
+    await db.commit()  # release the pooled connection during the slow calls below
     info = await asyncio.to_thread(youtube.list_source, src.url)
     items = await youtube.expand_chapters(info["items"])
     if not items:
         raise ValueError("No videos found at this link")
     version = ((await db.execute(select(func.max(TopicPlan.version)).where(TopicPlan.source_ref == src.source_ref))).scalar() or 0) + 1
     try:
+        await db.commit()
         raw = parse_json(await generate(plan_prompt(items, existing), FAST))
         plan, method = validate_plan(raw, len(items), {sid for sid, _ in existing}), "gemini"
     except Exception:
@@ -94,6 +96,7 @@ async def run_import(source_id: UUID, rebuild: bool = False, _retry: bool = True
                 )).scalars().all()
                 skill_ids = [s.id for s in skills]
                 src.title = src.title or plan_row.title
+                await db.commit()  # release the pooled connection during the Gemini call
                 links = await _detect_overlap([(s.id, s.label) for s in skills], existing)
             else:
                 version, plan, items, method, title = await _build_plan(db, src, existing)

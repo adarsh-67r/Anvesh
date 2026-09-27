@@ -35,6 +35,7 @@ async def generate_questions(db, skill_id: str, concepts: list[dict], count: int
         'Return ONLY a JSON array; each item: {"concept_index": int, "text": str, "options": [4 strings], '
         '"answer": the correct option string, "explanation": one sentence}.'
     )
+    await db.commit()  # release the pooled connection during the slow call
     raw = parse_json(await generate(prompt, FAST))
     existing = set((await db.execute(select(Question.id).where(Question.skill_id == skill_id))).scalars())
     added = 0

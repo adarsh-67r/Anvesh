@@ -95,6 +95,7 @@ async def lesson_context(db, lesson: SkillVideo) -> tuple[str, str]:
     if whole and whole.method == "captions" and (start or end):
         return slice_text(whole.text, start, end), "captions"
 
+    await db.commit()  # release the pooled connection during the slow calls below
     try:
         captions = await asyncio.to_thread(youtube.fetch_captions, yid)
     except Exception:
@@ -111,6 +112,7 @@ async def lesson_context(db, lesson: SkillVideo) -> tuple[str, str]:
     length = (end or lesson.duration or 0) - (start or 0)
     too_long = not CLIP_SUPPORTED and (lesson.duration or 0) > MAX_UNCLIPPED_SECONDS
     if length and not too_long and can_watch(await _watched_today(db), length):
+        await db.commit()
         try:
             text = await watch_video(yid, start, end)
             db.add(VideoContext(key=_key(yid, start, end), youtube_id=yid, text=text, method="gemini", seconds=length))
@@ -149,6 +151,7 @@ async def run_grounding(skill_id: str) -> None:
 
             per = TOPIC_CHARS // max(1, len(lessons))
             body = "\n\n".join(f"Lesson {n}: {l.title}\n{trim(t, per)}" for n, (l, t) in enumerate(zip(lessons, texts), 1))
+            await db.commit()  # release the pooled connection during the slow call
             raw = parse_json(await generate(NOTES_PROMPT.format(body=body), FAST))
             concepts = []
             for c in raw.get("concepts") or []:
