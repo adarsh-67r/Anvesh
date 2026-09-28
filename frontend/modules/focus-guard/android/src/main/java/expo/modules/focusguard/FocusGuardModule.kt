@@ -57,14 +57,16 @@ class FocusGuardModule : Module() {
     // Opens whichever of the two Android permissions is still missing.
     Function("openBlockerSettings") {
       val uri = Uri.parse("package:${context.packageName}")
-      val intent = when {
-        !FocusState.hasUsageAccess(context) -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, uri)
-        !FocusState.canOverlay(context) -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, uri)
-        else -> return@Function
-      }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      runCatching { context.startActivity(intent) }.onFailure {
-        // Some phones reject the package-specific screen; fall back to the general list.
-        context.startActivity(Intent(intent.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      val action = when {
+        !FocusState.hasUsageAccess(context) -> Settings.ACTION_USAGE_ACCESS_SETTINGS
+        !FocusState.canOverlay(context) -> Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+        else -> null
+      }
+      if (action != null) {
+        runCatching { context.startActivity(Intent(action, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.onFailure {
+          // Some phones reject the package-specific screen; fall back to the general list.
+          context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
       }
     }
 
