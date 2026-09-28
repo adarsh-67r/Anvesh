@@ -70,12 +70,16 @@ export default function FocusScreen() {
 
   useEffect(() => {
     if (session.status !== "running") return;
-    const id = setInterval(() => { setNow(Date.now()); tick(); }, 500);
-    return () => clearInterval(id);
+    // Refresh the clock immediately on start/resume so the dial never shows a stale value (e.g. 25:05).
+    const update = () => { setNow(Date.now()); tick(); };
+    const first = setTimeout(update, 0);
+    const id = setInterval(update, 250);
+    return () => { clearTimeout(first); clearInterval(id); };
   }, [session.status]);
 
   const idle = session.status === "idle";
-  const seconds = display(session, settings, now);
+  // Never show more than the full phase length, even for the instant before the first refresh.
+  const seconds = Math.max(0, Math.min(display(session, settings, now), session.kind === "stopwatch" ? Infinity : phaseSeconds(session.kind, session.phase, settings)));
   const color = session.phase === "focus" ? colors.primary : session.phase === "short" ? colors.secondary : colors.tertiary;
   const studyMinutes = status?.study_minutes ?? 0;
   const byTag = Object.entries(
