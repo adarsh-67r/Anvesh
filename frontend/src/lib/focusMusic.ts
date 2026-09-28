@@ -1,12 +1,12 @@
 import { useSyncExternalStore } from "react";
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
-/** Creative Commons (CC BY) tracks from YouTube, clipped to loop; credited on the Focus screen. */
+/** Focus tracks clipped to loop; credited on the Focus screen. */
 export const TRACKS = [
   { id: "lofi", label: "Lofi beats", icon: "headphones", source: require("../../assets/music/lofi.mp3"), credit: "Art Is Sound — Chill Lofi Beats Mix" },
   { id: "deep", label: "Deep focus", icon: "spa", source: require("../../assets/music/deep.mp3"), credit: "Optimist Music Flow — 60 BPM Study Piano" },
-  { id: "rain", label: "Rain", icon: "water-drop", source: require("../../assets/music/rain.mp3"), credit: "WR 212 — Relaxing Rain Sounds" },
-  { id: "jazz", label: "Café jazz", icon: "local-cafe", source: require("../../assets/music/jazz.mp3"), credit: "max relax — Coffee House Jazz" },
+  { id: "rain", label: "Rain", icon: "water-drop", source: require("../../assets/music/rain.mp3"), credit: "Generated in Anvesh" },
+  { id: "cinematic", label: "Cinematic", icon: "rocket-launch", source: require("../../assets/music/cinematic.mp3"), credit: "Hans Zimmer — Interstellar (edit)" },
 ] as const;
 export type TrackId = (typeof TRACKS)[number]["id"];
 export const VOLUMES = [0.3, 0.6, 1] as const;

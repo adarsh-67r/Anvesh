@@ -249,7 +249,7 @@ export default function FocusScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.hint}>{TRACKS.find((t) => t.id === music.track)?.credit} · CC BY, via YouTube</Text>
+              <Text style={styles.hint}>{TRACKS.find((t) => t.id === music.track)?.credit}</Text>
             </>
           )}
         </View>
