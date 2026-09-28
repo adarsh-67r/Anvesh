@@ -1,9 +1,9 @@
 package expo.modules.focusguard
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
@@ -52,14 +52,28 @@ class FocusGuardModule : Module() {
         .map { mapOf("package" to it.first, "label" to it.second) }
     }
 
-    Function("isBlockerEnabled") {
-      val me = ComponentName(context, BlockerService::class.java).flattenToString()
-      val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: ""
-      enabled.split(':').any { it.equals(me, ignoreCase = true) }
+    Function("isBlockerEnabled") { FocusState.hasUsageAccess(context) && FocusState.canOverlay(context) }
+
+    // Opens whichever of the two Android permissions is still missing.
+    Function("openBlockerSettings") {
+      val uri = Uri.parse("package:${context.packageName}")
+      val intent = when {
+        !FocusState.hasUsageAccess(context) -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, uri)
+        !FocusState.canOverlay(context) -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, uri)
+        else -> return@Function
+      }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      runCatching { context.startActivity(intent) }.onFailure {
+        // Some phones reject the package-specific screen; fall back to the general list.
+        context.startActivity(Intent(intent.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      }
     }
 
-    Function("openBlockerSettings") {
-      context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    Function("blockerSetupStep") {
+      when {
+        !FocusState.hasUsageAccess(context) -> "usage"
+        !FocusState.canOverlay(context) -> "overlay"
+        else -> "ready"
+      }
     }
 
     Function("hasNotificationPermission") {

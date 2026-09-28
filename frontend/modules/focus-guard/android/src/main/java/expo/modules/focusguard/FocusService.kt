@@ -18,6 +18,14 @@ import androidx.core.app.ServiceCompat
 class FocusService : Service() {
   private val handler = Handler(Looper.getMainLooper())
   private val finish = Runnable { complete() }
+  private var lastBlocked = 0L
+  private val watch = object : Runnable {
+    override fun run() {
+      if (!FocusState.isBlocking(this@FocusService)) return
+      coverBlockedApp()
+      handler.postDelayed(this, WATCH_MS)
+    }
+  }
   private var title = "Focus"
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -68,6 +76,22 @@ class FocusService : Service() {
 
     handler.removeCallbacks(finish)
     if (!paused && endAt > 0) handler.postDelayed(finish, (endAt - System.currentTimeMillis()).coerceAtLeast(0))
+    handler.removeCallbacks(watch)
+    if (FocusState.isBlocking(this) && FocusState.hasUsageAccess(this)) handler.post(watch)
+  }
+
+  /** Blocked app in front during focus: cover it with the "Back to focus" screen. */
+  private fun coverBlockedApp() {
+    val (pkg, at) = runCatching { FocusState.lastForeground(this, System.currentTimeMillis() - 10_000) }.getOrNull() ?: return
+    if (at <= lastBlocked || pkg == packageName || pkg !in FocusState.blockedApps(this)) return
+    lastBlocked = at
+    runCatching {
+      startActivity(
+        Intent(this, BlockActivity::class.java)
+          .putExtra(BlockActivity.EXTRA_PACKAGE, pkg)
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      )
+    }
   }
 
   private fun complete() {
@@ -87,12 +111,14 @@ class FocusService : Service() {
 
   private fun shutDown() {
     handler.removeCallbacks(finish)
+    handler.removeCallbacks(watch)
     ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
     stopSelf()
   }
 
   override fun onDestroy() {
     handler.removeCallbacks(finish)
+    handler.removeCallbacks(watch)
     super.onDestroy()
   }
 
@@ -118,6 +144,7 @@ class FocusService : Service() {
     private const val CHANNEL_DONE = "focus_done"
     private const val NOTIFICATION_ID = 4101
     private const val DONE_ID = 4102
+    private const val WATCH_MS = 700L
 
     fun ensureChannels(context: Context) {
       if (Build.VERSION.SDK_INT < 26) return

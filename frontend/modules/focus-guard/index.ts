@@ -11,6 +11,8 @@ declare class FocusGuardNative extends NativeModule<{ onAction: (e: { action: Fo
   listApps(): Promise<InstalledApp[]>;
   isBlockerEnabled(): boolean;
   openBlockerSettings(): void;
+  /** Next Android permission the blocker still needs. */
+  blockerSetupStep(): "usage" | "overlay" | "ready";
   hasNotificationPermission(): boolean;
   requestNotificationPermission(): void;
 }

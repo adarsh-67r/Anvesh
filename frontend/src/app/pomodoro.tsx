@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Switch, Modal, Alert, Platform, FlatList } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Switch, Modal, Alert, Platform, FlatList, AppState } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -62,6 +62,11 @@ export default function FocusScreen() {
   }, []);
   useFocusEffect(refreshStatus);
   useEffect(() => { setOnLogged(refreshStatus); return () => setOnLogged(null); }, [refreshStatus]);
+  // Coming back from Android settings: re-check the blocker permissions.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (st) => { if (st === "active" && FocusGuard) setBlockerOn(FocusGuard.isBlockerEnabled()); });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     if (session.status !== "running") return;
@@ -92,8 +97,8 @@ export default function FocusScreen() {
     if (on && FocusGuard && !FocusGuard.isBlockerEnabled()) {
       Alert.alert(
         "Allow focus mode",
-        "Android needs your permission once. In the next screen open \"Installed apps\" (or \"Downloaded apps\"), pick \"Anvesh focus mode\" and turn it on.",
-        [{ text: "Not now", style: "cancel" }, { text: "Open settings", onPress: () => FocusGuard?.openBlockerSettings() }],
+        "Android needs two one-time permissions: \"Usage access\" (to see which app is open) and \"Display over other apps\" (to show the Back to focus screen). Turn on Anvesh in each, then come back.",
+        [{ text: "Not now", style: "cancel" }, { text: "Continue", onPress: () => FocusGuard?.openBlockerSettings() }],
       );
     }
   };
@@ -266,7 +271,11 @@ export default function FocusScreen() {
             {settings.block && !blockerOn && (
               <TouchableOpacity style={styles.warn} onPress={() => FocusGuard?.openBlockerSettings()}>
                 <MaterialIcons name="error-outline" size={18} color={colors.error} />
-                <Text style={styles.warnText}>Not allowed yet. Tap to turn on “Anvesh focus mode” in Android settings.</Text>
+                <Text style={styles.warnText}>
+                  {FocusGuard.blockerSetupStep() === "usage"
+                    ? "Step 1 of 2: tap to turn on Usage access for Anvesh."
+                    : "Step 2 of 2: tap to allow Anvesh to display over other apps."}
+                </Text>
               </TouchableOpacity>
             )}
             {settings.block && (
