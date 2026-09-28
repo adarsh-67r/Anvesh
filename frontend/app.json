@@ -2,7 +2,7 @@
   "expo": {
     "name": "Anvesh",
     "slug": "anvesh",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "anvesh",
     "icon": "./assets/icon.png",
@@ -18,7 +18,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.arithi.anvesh"
+      "package": "com.arithi.anvesh",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png",

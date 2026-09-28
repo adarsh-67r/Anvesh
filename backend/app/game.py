@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
+from app.recommendation.router import MAX_SESSION_MINUTES
 from app.models import GameSession, LearningEvent, SkillVideo, User
 from app.recommendation.orchestrator import record_answer
 from app.trails.grounding import ensure_notes
@@ -34,8 +35,8 @@ async def _study_minutes_today(db: AsyncSession, user_id) -> int:
             )
         )
     ).scalars().all()
-    # ponytail: minutes are client-reported (capped at one 25-minute pomodoro each); verify server-side timing if it matters
-    return sum(min(max(int((c or {}).get("minutes", 0) or 0), 0), 25) for c in rows)
+    # ponytail: minutes are client-reported (capped per session); verify server-side timing if it matters
+    return sum(min(max(int((c or {}).get("minutes", 0) or 0), 0), MAX_SESSION_MINUTES) for c in rows)
 
 
 async def _ready_questions(db, user, skill_id: str, n: int, lesson_id=None):

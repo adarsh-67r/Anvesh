@@ -30,6 +30,7 @@ class PrerequisitesRequest(BaseModel):
 
 # Answers go through /answer so mastery updates; everything else is logged here.
 EVENT_TYPES = {"video_play", "study_session", "hint", "content_view"}
+MAX_SESSION_MINUTES = 180  # one focus session: pomodoro round, timer or stopwatch
 
 
 class EventRequest(BaseModel):
@@ -140,8 +141,8 @@ async def log_learning_event(body: EventRequest, user: User = Depends(get_curren
         raise HTTPException(status_code=413, detail="context too large")
     if body.event_type == "study_session":
         minutes = (body.context or {}).get("minutes")
-        if not isinstance(minutes, int) or not 1 <= minutes <= 25:
-            raise HTTPException(status_code=400, detail="study_session needs context.minutes between 1 and 25")
+        if not isinstance(minutes, int) or not 1 <= minutes <= MAX_SESSION_MINUTES:
+            raise HTTPException(status_code=400, detail=f"study_session needs context.minutes between 1 and {MAX_SESSION_MINUTES}")
     await log_event(db, str(user.id), body.skill_id[:100], body.event_type,
                     response_time_ms=body.response_time_ms, context=body.context)
     await db.commit()
