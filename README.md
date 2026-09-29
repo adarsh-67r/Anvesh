@@ -38,7 +38,7 @@ iGOT Karmayogi offers a vast course repository, but there is no intelligent mech
 | Learner dashboard | `/api/dashboard/me` — readiness, domains, gaps, learning hours, courses, assessments |
 | Administrator dashboard | `/api/dashboard/org` — competency distribution, readiness by department/role, priority and emerging needs, training effectiveness, projected readiness |
 | Role-based access control | `users.role` (learner / trainer / admin), `require_role` dependency; JWT auth, SSO-ready |
-| Web platform | Same codebase runs as a responsive web app (`npx expo export -p web`) and an Android app |
+| Web platform | Same codebase runs as a responsive web app (`npx expo export -p web`) (Android build possible from the same code) |
 
 ### Honest status of integrations
 
@@ -82,7 +82,7 @@ Run `python -m scripts.seed_ps26101` (from `backend/`) to create them plus 24 sy
 
 ```mermaid
 flowchart TB
-    subgraph Client["Web app + Android app (one codebase)"]
+    subgraph Client["Web app (responsive)"]
         L["Official: dashboard · competencies · learning path · assessments · AI assistant · focus mode"]
         T["Trainer: Question Studio (upload → review → publish)"]
         A["Admin: organisation analytics · users & roles"]
@@ -131,7 +131,7 @@ alembic upgrade head
 python -m scripts.seed_ps26101   # demo accounts + synthetic officials
 uvicorn app.main:app --reload --port 8000
 
-# App (web + Android)
+# App (web)
 cd frontend
 npm install
 npx expo start --web             # API defaults to http://localhost:8000; set EXPO_PUBLIC_API_URL to change
@@ -140,7 +140,6 @@ npx expo start --web             # API defaults to http://localhost:8000; set EX
 ## Deployment
 
 `render.yaml` on this branch defines `anvesh-karmayogi-api` (FastAPI) and `anvesh-karmayogi` (static web build).
-The Android app ("Anvesh Skills", `com.arithi.anvesh.skills`) builds from the manual *Android APK* workflow run on this branch.
 
 ## Project structure
 
