@@ -3,8 +3,6 @@
 ### AI Skill Intelligence & Learning Platform for India's Official Statistical System
 **Smart India Hackathon 2026 · Problem Statement SIH26101 · MoSPI (DIID) · Smart Education**
 
-> The original PS 26207 edition (Smart Education for school students, YouTube Trails) lives on branch [`ps-26207`](../../tree/ps-26207).
-
 [![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-009688.svg?logo=fastapi&logoColor=white)](backend)
 [![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20(Supabase)-4169E1.svg?logo=postgresql&logoColor=white)](backend/app/models.py)
 [![AI: Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-4285F4.svg?logo=google&logoColor=white)](backend/app/assess)
