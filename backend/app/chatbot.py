@@ -14,16 +14,14 @@ from app.competency.router import competency_levels
 from app.database import get_db
 from app.deps import get_current_user
 from app.llm import FAST, generate
-from app.models import Attachment, ChatMessage, TopicNotes, User
-from app.trails.captions import fmt_ts
-from app.trails.scope import user_skills
+from app.models import Attachment, ChatMessage, User
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 SYSTEM_PROMPT = (
-    "You are Anvesh, a helpful AI tutor for students. "
+    "You are Anvesh, a helpful AI learning assistant for officials of India's Official Statistical System. "
     "Explain concepts clearly, use simple language, give examples. "
-    "If the student seems stuck, break the problem into smaller steps. "
+    "If the learner seems stuck, break the problem into smaller steps. "
     "Keep responses concise but thorough."
 )
 
@@ -31,7 +29,6 @@ SYSTEM_PROMPT = (
 class ChatRequest(BaseModel):
     message: str = ""
     skill_context: str | None = None
-    topic_id: str | None = None
     attachment_id: UUID | None = None
 
 
@@ -79,20 +76,7 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user), db: As
             "Tailor explanations to official statistics work in India (MoSPI, NSO, NSSTA) and reply in the language the learner writes in."
         )
     if body.skill_context:
-        system_text += f"\n\nThe student is currently studying: {body.skill_context}"
-    if body.topic_id:
-        topic = next((t for t in await user_skills(db, user.id) if t.id == body.topic_id), None)
-        notes = await db.get(TopicNotes, body.topic_id) if topic else None
-        if topic and notes and notes.status == "ready":
-            lines = "\n".join(
-                f"- {c['concept']}: {c['explanation']}" + (f" (at {fmt_ts(c['timestamp_sec'])})" if c.get("timestamp_sec") is not None else "")
-                for c in notes.concepts or []
-            )
-            system_text += (
-                f"\n\nThe student is studying the topic '{topic.label}' from their trail '{topic.trail_title}'. "
-                f"Its lectures teach:\n{notes.summary}\n{lines}\n"
-                "Answer from these lectures where possible and point the student to the moment in the lecture that covers it."
-            )
+        system_text += f"\n\nThe learner is currently studying: {body.skill_context}"
 
     try:
         reply = await generate(contents, genai.types.GenerateContentConfig(system_instruction=system_text))

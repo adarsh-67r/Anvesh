@@ -89,21 +89,6 @@ async def upload(
     return meta(att)
 
 
-@router.get("/api/groups/{group_id}/files")
-async def group_files(group_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    if not await _is_member(db, group_id, user.id):
-        raise HTTPException(status_code=403, detail="Not a member of this group")
-    rows = (
-        await db.execute(
-            select(Attachment.id, Attachment.filename, Attachment.content_type, Attachment.size,
-                   Attachment.user_id, Attachment.created_at)
-            .where(Attachment.group_id == group_id)
-            .order_by(Attachment.created_at.desc())
-        )
-    ).all()
-    return [meta(r) for r in rows]
-
-
 @router.post("/api/attachments/{attachment_id}/link")
 async def signed_link(
     attachment_id: UUID, request: Request, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
