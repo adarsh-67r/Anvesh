@@ -1,4 +1,4 @@
-# SIH26101 edition (main): API "anvesh-api" . The web app is on Vercel (frontend/vercel.json).
+# SIH26101 edition (main): API "anvesh-api". The web app is on Vercel (frontend/vercel.json).
 services:
   - type: web
     name: anvesh-api
