@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ComponentProps, type ReactNode } from "react";
-import { Image, Modal, Pressable, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import Animated, { Easing, FadeInLeft, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -13,15 +13,37 @@ const CLOSE_MS = 200;
 
 type IconName = ComponentProps<typeof MaterialIcons>["name"];
 
-const ITEMS: { href: string; label: string; icon: IconName }[] = [
-  { href: "/", label: "Today", icon: "today" },
-  { href: "/trails", label: "Trails", icon: "route" },
+type Item = { href: string; label: string; icon: IconName };
+
+const LEARN: Item[] = [
+  { href: "/", label: "Dashboard", icon: "dashboard" },
+  { href: "/competencies", label: "My Competencies", icon: "insights" },
+  { href: "/courses", label: "Learning Path", icon: "school" },
+  { href: "/assessments", label: "Assessments", icon: "quiz" },
+  { href: "/chat", label: "AI Assistant", icon: "smart-toy" },
+];
+const TRAINER: Item[] = [{ href: "/studio", label: "Question Studio", icon: "auto-awesome" }];
+const ADMIN: Item[] = [
+  { href: "/admin", label: "Organisation", icon: "domain" },
+  { href: "/admin-users", label: "Users & Roles", icon: "manage-accounts" },
+];
+const EXTRAS: Item[] = [
+  { href: "/trails", label: "Video Courses", icon: "route" },
+  { href: "/today", label: "Study Today", icon: "today" },
   { href: "/cards", label: "Review", icon: "style" },
-  { href: "/chat", label: "AI Tutor", icon: "smart-toy" },
   { href: "/pomodoro", label: "Focus Timer", icon: "timer" },
   { href: "/todos", label: "Tasks", icon: "checklist" },
   { href: "/profile", label: "Study Groups", icon: "groups" },
 ];
+
+function itemsFor(role: string | undefined): Item[] {
+  return [
+    ...LEARN,
+    ...(role === "trainer" || role === "admin" ? TRAINER : []),
+    ...(role === "admin" ? ADMIN : []),
+    ...EXTRAS,
+  ];
+}
 
 const SidebarContext = createContext<{ open: () => void }>({ open: () => {} });
 
@@ -66,11 +88,12 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
               <Text style={styles.brandText}>Anvesh</Text>
             </View>
 
-            <View style={styles.items}>
-              {ITEMS.map((item, i) => {
+            <ScrollView style={styles.items} contentContainerStyle={{ gap: 2 }} showsVerticalScrollIndicator={false}>
+              {itemsFor(user?.role).map((item, i) => {
                 const active = pathname === item.href;
                 return (
-                  <Animated.View key={item.href} entering={FadeInLeft.delay(80 + i * 35).springify().damping(18)}>
+                  <Animated.View key={item.href} entering={FadeInLeft.delay(80 + Math.min(i, 8) * 35).springify().damping(18)}>
+                  {item === EXTRAS[0] && <Text style={styles.section}>More</Text>}
                   <TouchableOpacity
                     style={[styles.item, active && styles.itemActive]}
                     onPress={() => go(item.href)}
@@ -83,7 +106,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
                   </Animated.View>
                 );
               })}
-            </View>
+            </ScrollView>
 
             <View style={styles.soundRow}>
               <MaterialIcons name={sound ? "volume-up" : "volume-off"} size={22} color={colors.textSecondary} />
@@ -102,7 +125,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
                 <Text style={styles.avatarText}>{(user?.name || "S").charAt(0).toUpperCase()}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.userName} numberOfLines={1}>{user?.name || "Student"}</Text>
+                <Text style={styles.userName} numberOfLines={1}>{user?.name || "Official"}</Text>
                 <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
               </View>
               <TouchableOpacity
@@ -158,7 +181,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandText: { ...typography.headlineMd, color: colors.primary },
-  items: { flex: 1, gap: 2 },
+  items: { flex: 1 },
+  section: { ...typography.labelMd, color: colors.textMuted, textTransform: "uppercase", marginTop: spacing.md, marginBottom: spacing.xs, marginLeft: spacing.md },
   item: {
     flexDirection: "row",
     alignItems: "center",

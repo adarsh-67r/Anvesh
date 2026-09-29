@@ -3,7 +3,8 @@ import { router } from "expo-router";
 import { api, setToken, clearToken, getToken, setUnauthorizedHandler } from "./api";
 import { clearOfflineCache } from "./offline";
 
-type User = { id: string; name: string; email: string };
+export type UserRole = "learner" | "trainer" | "admin";
+type User = { id: string; name: string; email: string; role?: UserRole };
 
 type AuthState = {
   user: User | null;

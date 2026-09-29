@@ -17,6 +17,12 @@ import { router } from "expo-router";
 import { useAuth } from "../../lib/auth";
 import { colors, typography, spacing, radii, fonts } from "../../lib/theme";
 
+const DEMOS = [
+  { label: "Official", email: "officer@anvesh.in" },
+  { label: "Trainer", email: "trainer@anvesh.in" },
+  { label: "Admin", email: "admin@anvesh.in" },
+];
+
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const [email, setEmail] = useState("");
@@ -24,12 +30,12 @@ export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (demo = false) => async () => {
+  const handleSubmit = (demo?: string) => async () => {
     if (!demo && (!email.trim() || !password.trim())) return;
     setLoading(true);
     try {
       if (demo) {
-        await login("demo@anvesh.in", "demo1234");
+        await login(demo, "demo1234");
       } else if (isSignUp) {
         await register(email.trim(), password);
       } else {
@@ -56,7 +62,7 @@ export default function LoginScreen() {
             <Image source={require("../../../assets/icon.png")} style={styles.logo} />
           </Animated.View>
           <Animated.Text entering={FadeInDown.delay(150)} style={styles.title}>Anvesh</Animated.Text>
-          <Animated.Text entering={FadeInDown.delay(250)} style={styles.subtitle}>Your adaptive learning companion</Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(250)} style={styles.subtitle}>Skill intelligence for Official Statistics</Animated.Text>
         </View>
 
         <Animated.View entering={FadeInDown.delay(350).springify().damping(18)} style={styles.form}>
@@ -98,13 +104,20 @@ export default function LoginScreen() {
             </Text>
           </PressableScale>
 
-          <PressableScale
-            style={[styles.demoButton, loading && styles.buttonDisabled]}
-            onPress={handleSubmit(true)}
-            disabled={loading}
-          >
-            <Text style={styles.demoButtonText}>Try demo account</Text>
-          </PressableScale>
+          <Text style={styles.demoLabel}>Try a demo account</Text>
+          <View style={styles.demoRow}>
+            {DEMOS.map((d) => (
+              <PressableScale
+                key={d.email}
+                style={[styles.demoButton, styles.demoChoice, loading && styles.buttonDisabled]}
+                onPress={handleSubmit(d.email)}
+                disabled={loading}
+                accessibilityLabel={`Try as ${d.label}`}
+              >
+                <Text style={styles.demoButtonText}>{d.label}</Text>
+              </PressableScale>
+            ))}
+          </View>
 
           <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.switchBtn}>
             <Text style={styles.switchText}>
@@ -165,6 +178,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   demoButtonText: { ...typography.labelLg, color: colors.primary },
+  demoLabel: { ...typography.bodySm, color: colors.textSecondary, textAlign: "center", marginTop: spacing.md },
+  demoRow: { flexDirection: "row", gap: spacing.sm },
+  demoChoice: { flex: 1, marginTop: spacing.xs },
   buttonText: { ...typography.labelLg, color: "#FFFFFF" },
   switchBtn: { marginTop: spacing.md, alignItems: "center" },
   switchText: { ...typography.bodyMd, color: colors.textSecondary },

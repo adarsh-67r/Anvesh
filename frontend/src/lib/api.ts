@@ -95,6 +95,8 @@ export const api = {
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   upload: <T>(path: string, form: FormData) =>
     Platform.OS === "web" ? request<T>(path, { method: "POST", body: form }) : uploadNative<T>(path, form),
@@ -118,11 +120,11 @@ export type PickedFile = { uri: string; name: string; mimeType: string; size?: n
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-export async function pickFile(types: string[]): Promise<PickedFile | null> {
+export async function pickFile(types: string[], maxBytes = MAX_FILE_BYTES): Promise<PickedFile | null> {
   const res = await DocumentPicker.getDocumentAsync({ type: types, copyToCacheDirectory: true, base64: false });
   if (res.canceled || !res.assets?.length) return null;
   const a = res.assets[0];
-  if (a.size && a.size > MAX_FILE_BYTES) throw new Error("File is too large (max 5 MB).");
+  if (a.size && a.size > maxBytes) throw new Error(`File is too large (max ${Math.round(maxBytes / 1048576)} MB).`);
   return { uri: a.uri, name: a.name, mimeType: a.mimeType ?? "application/octet-stream", size: a.size, file: a.file };
 }
 
