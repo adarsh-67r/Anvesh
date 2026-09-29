@@ -1,10 +1,10 @@
-# SIH26101 edition (branch ps-26101). The original edition's API ("anvesh-api") is defined on master.
-# Create with Render -> New -> Blueprint -> this repo, branch ps-26101.
+# SIH26101 edition (master). The original PS 26207 edition ("anvesh-api") lives on branch ps-26207.
+# Create with Render -> New -> Blueprint -> this repo, branch master.
 services:
   - type: web
     name: anvesh-karmayogi-api
     runtime: python
-    branch: ps-26101
+    branch: master
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -24,7 +24,7 @@ services:
   - type: web
     name: anvesh-karmayogi
     runtime: static
-    branch: ps-26101
+    branch: master
     rootDir: frontend
     buildCommand: npm ci && npx expo export -p web
     staticPublishPath: dist
