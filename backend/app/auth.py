@@ -34,6 +34,10 @@ class TokenResponse(BaseModel):
     user: dict
 
 
+def user_payload(user: User) -> dict:
+    return {"id": str(user.id), "name": user.name, "email": user.email, "role": user.role}
+
+
 def create_token(user_id: UUID) -> str:
     exp = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
     return jwt.encode({"sub": str(user_id), "exp": exp}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
@@ -52,7 +56,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"token": create_token(user.id), "user": {"id": str(user.id), "name": user.name, "email": user.email}}
+    return {"token": create_token(user.id), "user": user_payload(user)}
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -64,7 +68,7 @@ async def register(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return {"token": create_token(user.id), "user": {"id": str(user.id), "name": user.name, "email": user.email}}
+    return {"token": create_token(user.id), "user": user_payload(user)}
 
 
 @router.get("/me")
@@ -72,4 +76,4 @@ async def me(creds: HTTPAuthorizationCredentials = Depends(HTTPBearer()), db: As
     user = await db.get(User, verify_token(creds.credentials))
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    return {"id": str(user.id), "name": user.name, "email": user.email}
+    return user_payload(user)

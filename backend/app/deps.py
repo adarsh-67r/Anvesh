@@ -21,3 +21,12 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
+
+
+def require_role(*roles: str):
+    """Dependency: the current user must hold one of these roles (admins pass every check)."""
+    async def check(user: User = Depends(get_current_user)) -> User:
+        if user.role != "admin" and user.role not in roles:
+            raise HTTPException(status_code=403, detail="Not allowed for your role")
+        return user
+    return check
