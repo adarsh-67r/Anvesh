@@ -150,3 +150,8 @@ export type StudyStatus = { study_minutes: number; required_minutes: number; unl
 export function logEvent(event_type: string, skill_id = "general", context?: Record<string, unknown>) {
   api.post("/api/recommend/events", { event_type, skill_id, context }).catch(() => {});
 }
+
+/** The FastAPI error detail from a failed request, or a fallback message. */
+export function errorDetail(e: unknown, fallback: string): string {
+  try { return JSON.parse((e as Error).message).detail || fallback; } catch { return fallback; }
+}

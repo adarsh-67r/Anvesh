@@ -24,9 +24,8 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
-import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
+import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment , errorDetail } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
-import { errorDetail } from "../../lib/trails";
 import { Markdown, stripMarkdown } from "../../components/Markdown";
 import { playTrack } from "../../lib/focusMusic";
 import { ScreenHeader } from "../../components/Sidebar";
@@ -50,7 +49,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const { label: skillLabel, topic } = useLocalSearchParams<{ label?: string; topic?: string }>();
+  const { label: skillLabel } = useLocalSearchParams<{ label?: string }>();
   const [pending, setPending] = useState<PickedFile | null>(null);
   const [transcribing, setTranscribing] = useState(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -151,7 +150,7 @@ export default function ChatScreen() {
       if (uploaded) {
         setMessages((prev) => prev.map((m) => (m === userMsg ? { ...m, attachment: uploaded } : m)));
       }
-      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id, skill_context: skillLabel || undefined, topic_id: topic || undefined });
+      const res = await api.post<{ reply: string }>("/api/chat", { message: text, attachment_id: uploaded?.id, skill_context: skillLabel || undefined });
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: res.reply, created_at: new Date().toISOString() },
@@ -168,7 +167,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <ScreenHeader title="AI Tutor" subtitle={skillLabel ? `Helping with ${skillLabel}` : "Ask anything, by text, voice or photo"} />
+      <ScreenHeader title="AI Assistant" subtitle={skillLabel ? `Helping with ${skillLabel}` : "Ask anything, by text, voice or photo"} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -257,7 +256,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
           <TextInput
             style={styles.input}
-            placeholder="Ask your AI tutor..."
+            placeholder="Ask your AI assistant..."
             placeholderTextColor={colors.textMuted}
             value={input}
             onChangeText={setInput}

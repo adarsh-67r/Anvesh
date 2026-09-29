@@ -28,12 +28,7 @@ const ADMIN: Item[] = [
   { href: "/admin-users", label: "Users & Roles", icon: "manage-accounts" },
 ];
 const EXTRAS: Item[] = [
-  { href: "/trails", label: "Video Courses", icon: "route" },
-  { href: "/today", label: "Study Today", icon: "today" },
-  { href: "/cards", label: "Review", icon: "style" },
   { href: "/pomodoro", label: "Focus Timer", icon: "timer" },
-  { href: "/todos", label: "Tasks", icon: "checklist" },
-  { href: "/profile", label: "Study Groups", icon: "groups" },
 ];
 
 function itemsFor(role: string | undefined): Item[] {

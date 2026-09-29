@@ -39,9 +39,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" options={{ animation: "fade" }} />
           <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
           <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
-          <Stack.Screen name="practice/[skillId]" options={{ animation: "slide_from_bottom" }} />
-          <Stack.Screen name="quiz/[skillId]" options={{ animation: "slide_from_bottom" }} />
-          <Stack.Screen name="lecture/[id]" options={{ animation: "fade_from_bottom" }} />
+          <Stack.Screen name="assess/[id]" options={{ animation: "slide_from_bottom" }} />
         </Stack>
       </SidebarProvider>
     </AuthProvider>

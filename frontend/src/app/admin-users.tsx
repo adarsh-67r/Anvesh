@@ -1,9 +1,8 @@
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { api } from "../lib/api";
+import { api , errorDetail } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { errorDetail } from "../lib/trails";
 import { Card, Chip, Empty, Page, shared } from "../components/Skill";
 import { Skeleton } from "../components/Motion";
 

@@ -16,7 +16,7 @@ function inline(text: string, base: TextStyle): ReactNode[] {
   });
 }
 
-/** Renders the Markdown the AI tutor replies with: headings, lists, code blocks and inline emphasis. */
+/** Renders the Markdown the AI assistant replies with: headings, lists, code blocks and inline emphasis. */
 export function Markdown({ text, style }: { text: string; style?: TextStyle }) {
   const base = StyleSheet.flatten([styles.body, style]);
   const blocks: ReactNode[] = [];

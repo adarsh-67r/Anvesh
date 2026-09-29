@@ -3,7 +3,7 @@ import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { api, pickFile, type PickedFile } from "../lib/api";
-import { errorDetail } from "../lib/trails";
+import { errorDetail } from "../lib/api";
 import { getFramework, type Competency } from "../lib/skills";
 import { colors, radii, spacing, typography } from "../lib/theme";
 import { Badge, Button, Card, Chip, Empty, Page, SectionTitle, shared } from "../components/Skill";

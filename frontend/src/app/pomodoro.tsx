@@ -3,12 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Switch
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { api, StudyStatus } from "../lib/api";
 import { Breathe, PressableScale, ProgressBar } from "../components/Motion";
 import { colors, typography, spacing, radii } from "../lib/theme";
 import { FocusGuard, type InstalledApp } from "../../modules/focus-guard";
 import {
-  useFocus, start, pause, stop, skip, tick, setKind, setTag, addTag, removeTag, updateSettings, setOnLogged,
+  useFocus, start, pause, stop, skip, tick, setKind, setTag, addTag, removeTag, updateSettings,
   display, clock, phaseLabel, phaseSeconds, today, type Kind, type Settings,
 } from "../lib/focus";
 import { TRACKS, VOLUMES, useMusic, playTrack, setMusicVolume } from "../lib/focusMusic";
@@ -50,18 +49,12 @@ export default function FocusScreen() {
   const { session, settings, tags, log } = useFocus();
   const music = useMusic();
   const [now, setNow] = useState(() => Date.now());
-  const [status, setStatus] = useState<StudyStatus | null>(null);
   const [newTag, setNewTag] = useState<string | null>(null);
   const [picker, setPicker] = useState<InstalledApp[] | null>(null);
   const [blocked, setBlocked] = useState<string[]>(() => FocusGuard?.getBlockedApps() ?? []);
   const [blockerOn, setBlockerOn] = useState(() => FocusGuard?.isBlockerEnabled() ?? false);
 
-  const refreshStatus = useCallback(() => {
-    api.get<StudyStatus>("/api/game/status").then(setStatus).catch(() => {});
-    if (FocusGuard) setBlockerOn(FocusGuard.isBlockerEnabled());
-  }, []);
-  useFocusEffect(refreshStatus);
-  useEffect(() => { setOnLogged(refreshStatus); return () => setOnLogged(null); }, [refreshStatus]);
+  useFocusEffect(useCallback(() => { if (FocusGuard) setBlockerOn(FocusGuard.isBlockerEnabled()); }, []));
   // Coming back from Android settings: re-check the blocker permissions.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (st) => { if (st === "active" && FocusGuard) setBlockerOn(FocusGuard.isBlockerEnabled()); });
@@ -81,7 +74,7 @@ export default function FocusScreen() {
   // Never show more than the full phase length, even for the instant before the first refresh.
   const seconds = Math.max(0, Math.min(display(session, settings, now), session.kind === "stopwatch" ? Infinity : phaseSeconds(session.kind, session.phase, settings)));
   const color = session.phase === "focus" ? colors.primary : session.phase === "short" ? colors.secondary : colors.tertiary;
-  const studyMinutes = status?.study_minutes ?? 0;
+  const studyMinutes = log.filter((e) => e.day === today()).reduce((sum, e) => sum + e.minutes, 0);
   const byTag = Object.entries(
     log.filter((e) => e.day === today()).reduce<Record<string, number>>((acc, e) => {
       const k = e.tag ?? "Untagged";
@@ -308,14 +301,7 @@ export default function FocusScreen() {
               ))}
             </View>
           )}
-          {status && (
-            <View style={styles.unlockRow}>
-              <MaterialIcons name={status.unlocked ? "lock-open" : "lock"} size={16} color={status.unlocked ? colors.tertiaryDark : colors.textSecondary} />
-              <Text style={[styles.progressLabel, status.unlocked && { color: colors.tertiaryDark }]}>
-                {status.unlocked ? "Quiz games unlocked" : `${status.required_minutes - status.study_minutes} more focus minutes to unlock quiz games`}
-              </Text>
-            </View>
-          )}
+          <Text style={styles.progressLabel}>Focus minutes also count towards your learning hours.</Text>
         </View>
       </ScrollView>
 
@@ -408,7 +394,6 @@ const styles = StyleSheet.create({
   progressLabel: { ...typography.bodySm, color: colors.textSecondary, marginTop: spacing.xs, textAlign: "center" },
   tagStat: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.full, backgroundColor: colors.primaryLight },
   tagStatText: { ...typography.labelMd, color: colors.primaryDark },
-  unlockRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 },
   appRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.md, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border,

@@ -142,10 +142,10 @@ export function Breathe({ active, children, style }: { active: boolean; children
   return <Animated.View style={[style, a]}>{children}</Animated.View>;
 }
 
-/** Three dots bouncing in turn: "the tutor is typing". */
+/** Three dots bouncing in turn: "the assistant is typing". */
 export function TypingDots({ color = colors.primary }: { color?: string }) {
   return (
-    <View style={{ flexDirection: "row", gap: 5, paddingVertical: 4 }} accessibilityLabel="Tutor is typing">
+    <View style={{ flexDirection: "row", gap: 5, paddingVertical: 4 }} accessibilityLabel="Assistant is typing">
       {[0, 1, 2].map((i) => <Dot key={i} delay={i * 150} color={color} />)}
     </View>
   );

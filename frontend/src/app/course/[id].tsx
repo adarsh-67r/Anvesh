@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Text, View } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { api } from "../../lib/api";
-import { errorDetail } from "../../lib/trails";
+import { api , errorDetail } from "../../lib/api";
 import { SOURCE_LABEL, getFramework, type Course } from "../../lib/skills";
 import { colors, spacing } from "../../lib/theme";
 import { Badge, Button, Card, Page, SampleNote, SectionTitle, shared } from "../../components/Skill";

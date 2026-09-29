@@ -3,9 +3,8 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { api } from "../../lib/api";
+import { api , errorDetail } from "../../lib/api";
 import { feedback } from "../../lib/feedback";
-import { errorDetail } from "../../lib/trails";
 import { getFramework, levelText, waitReady, type Assessment } from "../../lib/skills";
 import { colors, radii, spacing, typography } from "../../lib/theme";
 import { Button, shared } from "../../components/Skill";
