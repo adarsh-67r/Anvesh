@@ -139,7 +139,8 @@ npx expo start --web             # API defaults to http://localhost:8000; set EX
 
 ## Deployment
 
-`render.yaml` on this branch defines `anvesh-api` (FastAPI) and `anvesh-web` (static web build).
+- **API:** Render (`render.yaml`, service `anvesh-api`).
+- **Web app:** Vercel, root directory `frontend` (`frontend/vercel.json`), env `EXPO_PUBLIC_API_URL=https://anvesh-api.onrender.com`.
 
 ## Project structure
 
