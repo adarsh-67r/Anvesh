@@ -64,6 +64,31 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+/**
+ * File uploads on the phone. The app's global fetch (expo/fetch) rejects React Native's
+ * `{ uri, name, type }` FormData parts ("Unsupported FormDataPart implementation");
+ * React Native's own XMLHttpRequest streams those local files natively.
+ */
+async function uploadNative<T>(path: string, form: FormData): Promise<T> {
+  const token = await getToken();
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE_URL}${path}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.onload = () => {
+      if (xhr.status === 401 && token) {
+        clearToken().then(() => onUnauthorized?.());
+      }
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(xhr.responseText || `${xhr.status}`));
+      try { resolve(JSON.parse(xhr.responseText) as T); } catch (e) { reject(e); }
+    };
+    xhr.onerror = () => reject(new Error("Network error while uploading"));
+    xhr.ontimeout = () => reject(new Error("Upload timed out"));
+    xhr.timeout = 120000;
+    xhr.send(form);
+  });
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -71,7 +96,8 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
-  upload: <T>(path: string, form: FormData) => request<T>(path, { method: "POST", body: form }),
+  upload: <T>(path: string, form: FormData) =>
+    Platform.OS === "web" ? request<T>(path, { method: "POST", body: form }) : uploadNative<T>(path, form),
 };
 
 export type Attachment = { id: string; filename: string; content_type: string; size?: number };
