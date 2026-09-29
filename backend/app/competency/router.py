@@ -71,18 +71,22 @@ async def put_profile(body: ProfileBody, user: User = Depends(get_current_user),
     return {"profile": profile_dict(p)}
 
 
-async def competency_levels(db: AsyncSession, user_id) -> tuple[OfficialProfile | None, list]:
-    p = await db.get(OfficialProfile, user_id)
-    rows = (await db.execute(
-        select(SkillMastery).where(SkillMastery.user_id == user_id, SkillMastery.skill_id.like("comp:%"))
-    )).scalars().all()
+def levels_for(p: OfficialProfile | None, rows: list[SkillMastery]) -> list:
     assessed = {r.skill_id.removeprefix("comp:"): r.mastery_score for r in rows if r.skill_id.removeprefix("comp:") in BY_ID}
     text = ProfileText(
         qualifications=(p.qualifications if p else []) or [], past_trainings=(p.past_trainings if p else []) or [],
         current_assignment=p.current_assignment if p else "", experience_years=p.experience_years if p else 0,
     )
     role = ROLE_BY_ID.get(p.role_id) if p and p.role_id else None
-    return p, build_levels(role, text, assessed)
+    return build_levels(role, text, assessed)
+
+
+async def competency_levels(db: AsyncSession, user_id) -> tuple[OfficialProfile | None, list]:
+    p = await db.get(OfficialProfile, user_id)
+    rows = (await db.execute(
+        select(SkillMastery).where(SkillMastery.user_id == user_id, SkillMastery.skill_id.like("comp:%"))
+    )).scalars().all()
+    return p, levels_for(p, rows)
 
 
 @router.get("/me")
