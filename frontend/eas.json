@@ -3,7 +3,7 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://anvesh-26101-api.onrender.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://anvesh-karmayogi-api.onrender.com" }
     }
   }
 }

@@ -2,7 +2,7 @@
 # Create with Render -> New -> Blueprint -> this repo, branch ps-26101.
 services:
   - type: web
-    name: anvesh-26101-api
+    name: anvesh-karmayogi-api
     runtime: python
     branch: ps-26101
     rootDir: backend
@@ -22,7 +22,7 @@ services:
         sync: false
 
   - type: web
-    name: anvesh-26101-web
+    name: anvesh-karmayogi
     runtime: static
     branch: ps-26101
     rootDir: frontend
@@ -30,7 +30,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: EXPO_PUBLIC_API_URL
-        value: https://anvesh-26101-api.onrender.com
+        value: https://anvesh-karmayogi-api.onrender.com
     routes:
       - type: rewrite
         source: /*
