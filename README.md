@@ -38,7 +38,7 @@ iGOT Karmayogi offers a vast course repository, but there is no intelligent mech
 | Learner dashboard | `/api/dashboard/me` — readiness, domains, gaps, learning hours, courses, assessments |
 | Administrator dashboard | `/api/dashboard/org` — competency distribution, readiness by department/role, priority and emerging needs, training effectiveness, projected readiness |
 | Role-based access control | `users.role` (learner / trainer / admin), `require_role` dependency; JWT auth, SSO-ready |
-| Web platform | Same codebase runs as a responsive web app (`npx expo export -p web`) (Android build possible from the same code) |
+| Web platform | Same codebase runs as a responsive web app (`npx expo export -p web`); the same code can also build an Android app |
 
 ### Honest status of integrations
 
