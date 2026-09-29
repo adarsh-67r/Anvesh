@@ -26,6 +26,8 @@ import {
 } from "expo-audio";
 import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
+import { errorDetail } from "../../lib/trails";
+import { playTrack } from "../../lib/focusMusic";
 import { ScreenHeader } from "../../components/Sidebar";
 
 type Message = { role: string; content: string; created_at: string; attachment?: Attachment | null };
@@ -61,9 +63,16 @@ export default function ChatScreen() {
       Alert.alert("Microphone", "Allow microphone access to ask questions by voice.");
       return;
     }
-    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
+    try {
+      // Focus music holds the audio session; stop it so the mic can record.
+      await playTrack(null);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: "mixWithOthers" });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (e) {
+      Alert.alert("Voice Input", `Could not start the microphone. ${(e as Error)?.message ?? ""}`.trim());
+      return;
+    }
     // Keep recordings short so uploads stay under the 5 MB limit.
     autoStopRef.current = setTimeout(() => stopRecordingRef.current(), 60000);
   };
@@ -85,11 +94,13 @@ export default function ChatScreen() {
       } else {
         form.append("file", { uri, name: "voice.m4a", type: "audio/m4a" } as unknown as Blob);
       }
-      const { text } = await api.upload<{ text: string }>("/api/chat/transcribe", form);
+      const send = () => api.upload<{ text: string }>("/api/chat/transcribe", form);
+      // One retry: the server may be waking up or the AI briefly busy.
+      const { text } = await send().catch(() => new Promise<{ text: string }>((ok, fail) => setTimeout(() => send().then(ok, fail), 1500)));
       if (text) setInput((prev) => (prev ? `${prev} ${text}` : text));
       else Alert.alert("Voice Input", "Didn't catch that. Try again a little closer to the mic.");
-    } catch {
-      Alert.alert("Voice Input", "Could not transcribe. Please try again.");
+    } catch (e) {
+      Alert.alert("Voice Input", errorDetail(e, "Could not transcribe. Please try again."));
     } finally {
       setTranscribing(false);
     }
