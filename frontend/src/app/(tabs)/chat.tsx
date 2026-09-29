@@ -27,6 +27,7 @@ import {
 import { AI_FILE_TYPES, api, Attachment, openAttachment, PickedFile, pickFile, uploadAttachment } from "../../lib/api";
 import { colors, typography, spacing, radii } from "../../lib/theme";
 import { errorDetail } from "../../lib/trails";
+import { Markdown, stripMarkdown } from "../../components/Markdown";
 import { playTrack } from "../../lib/focusMusic";
 import { ScreenHeader } from "../../components/Sidebar";
 
@@ -34,7 +35,8 @@ type Message = { role: string; content: string; created_at: string; attachment?:
 
 const fileIcon = (type: string) => (type.startsWith("image/") ? "image" : type === "application/pdf" ? "picture-as-pdf" : "description");
 
-const speakText = (text: string) => {
+const speakText = (markdown: string) => {
+  const text = stripMarkdown(markdown);
   if (Platform.OS === "web" && typeof window !== "undefined" && window.speechSynthesis) {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
@@ -100,7 +102,10 @@ export default function ChatScreen() {
       if (text) setInput((prev) => (prev ? `${prev} ${text}` : text));
       else Alert.alert("Voice Input", "Didn't catch that. Try again a little closer to the mic.");
     } catch (e) {
-      Alert.alert("Voice Input", errorDetail(e, "Could not transcribe. Please try again."));
+      const raw = (e as Error)?.message ?? String(e);
+      Alert.alert("Voice Input", errorDetail(e, `Could not transcribe. Please try again.
+
+(${raw.slice(0, 160)})`));
     } finally {
       setTranscribing(false);
     }
@@ -210,9 +215,11 @@ export default function ChatScreen() {
                   <Text style={styles.fileChipText} numberOfLines={1}>{msg.attachment.filename}</Text>
                 </TouchableOpacity>
               )}
-              <Text style={[styles.bubbleText, msg.role === "user" && styles.userBubbleText]}>
-                {msg.content}
-              </Text>
+              {msg.role === "user" ? (
+                <Text style={[styles.bubbleText, styles.userBubbleText]}>{msg.content}</Text>
+              ) : (
+                <Markdown text={msg.content} style={styles.bubbleText} />
+              )}
             </Animated.View>
           ))}
           {sending && (
