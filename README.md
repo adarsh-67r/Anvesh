@@ -1,74 +1,86 @@
 # Anvesh
 
-### Adaptive Smart Education Platform with Multi-Phase Recommendation Engine
-**Smart India Hackathon 2026 · Problem Statement 26207 · Smart Education**
+### AI Skill Intelligence & Learning Platform for India's Official Statistical System
+**Smart India Hackathon 2026 · Problem Statement SIH26101 · MoSPI (DIID) · Smart Education**
+
+> This branch (`ps-26101`) is the SIH26101 edition. The original Smart Education edition (school students, YouTube Trails) lives on `master`.
 
 [![Backend: FastAPI](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.13-009688.svg?logo=fastapi&logoColor=white)](backend)
-[![App: Expo React Native](https://img.shields.io/badge/App-Expo%20%7C%20React%20Native-000020.svg?logo=expo&logoColor=white)](frontend)
-[![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2016%20(Supabase)-4169E1.svg?logo=postgresql&logoColor=white)](backend/app/models.py)
-[![AI: Google Gemini](https://img.shields.io/badge/AI%20Chatbot-Google%20Gemini-4285F4.svg?logo=google&logoColor=white)](backend/app/chatbot.py)
-[![Recommendation: EMA + BKT + IRT](https://img.shields.io/badge/Recommendation-EMA%20%2B%20BKT%20%2B%20IRT-blueviolet.svg)](backend/app/recommendation)
-[![Spaced Repetition: SM-2](https://img.shields.io/badge/Flashcards-SM--2%20Algorithm-orange.svg)](backend/app/flashcards.py)
-[![Offline Flashcards](https://img.shields.io/badge/Flashcards-Offline%20Review-success.svg)](frontend/src/lib/offline.ts)
+[![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%20(Supabase)-4169E1.svg?logo=postgresql&logoColor=white)](backend/app/models.py)
+[![AI: Google Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-4285F4.svg?logo=google&logoColor=white)](backend/app/assess)
+[![Mastery: EMA + BKT + IRT](https://img.shields.io/badge/Mastery-EMA%20%2B%20BKT%20%2B%20IRT-blueviolet.svg)](backend/app/recommendation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
 ## The Problem
 
-India's education system serves 250M+ students with one-size-fits-all teaching. The core failure is a **personalization gap**:
+Officials of India's Official Statistical System must keep pace with AI/ML, big data, GIS, cloud and modern statistical methods.
+iGOT Karmayogi offers a vast course repository, but there is no intelligent mechanism that:
 
-- **No Adaptive Paths:** A Class 8 student struggling with fractions receives the same algebra content as one who mastered it weeks ago. Existing platforms recommend by grade, not by individual mastery.
-- **Engagement Cliff:** 30%+ students disengage before completing a topic because content difficulty doesn't match their level (ASER 2023). There is no system to detect dropout risk before it happens.
-- **Retention Decay:** Students cram before exams and forget within weeks. No platform integrates scientifically proven spaced repetition into the learning flow.
-- **Content Isolation:** Learning videos, practice questions, revision cards, and study planning live in separate apps with no connection between them.
-
-**Anvesh eliminates this personalization gap with an adaptive recommendation engine that builds a unique learning path for every student, tracks mastery using proven algorithms, and evolves automatically from rule-based to ML-driven as data accumulates.**
-
----
+- builds a **competency profile** for each official from their role, experience and training history,
+- measures it against a **competency framework for Official Statistics** and finds **skill gaps**,
+- recommends a **personalized pathway** of iGOT Karmayogi courses and NSSTA (TPAC-recommended) programmes,
+- lets trainers **generate assessments from their own learning material** instead of writing them by hand,
+- gives administrators **organisation-wide insight** into competencies, training effectiveness and emerging needs.
 
 ## The Solution
 
-A unified adaptive learning platform where every feature is connected to a single intelligence layer:
+| PS 26101 requirement | Where it lives |
+|---|---|
+| Competency profile from designation, department, role, assignment, qualifications, experience, trainings | `backend/app/competency/router.py` (`/api/competency/profile`), `frontend/src/app/profile-setup.tsx` |
+| Competency framework: Statistical, Technical, Digital Governance, Behavioural (33 competencies) and 7 MoSPI roles | `backend/app/competency/framework.py` |
+| AI-based competency assessment | Diagnostic MCQs per competency (LLM) + mastery engine EMA → BKT → IRT (`backend/app/recommendation`) |
+| Automated skill-gap analysis | `backend/app/competency/levels.py` — gap = role requirement − current level, prerequisites first |
+| iGOT Karmayogi + NSSTA/TPAC recommendations | Catalogue connectors `backend/app/catalog/connectors.py`, gap-based ranking `backend/app/catalog/recommend.py` |
+| Enrolment, completion, automatic competency updates | `/api/courses/*` — completion quiz (70%) completes the enrolment; every answer updates mastery |
+| MCQs & quizzes from uploaded documents, presentations, videos | Intelligent Assessment Engine `backend/app/assess` — PDF/PPTX/DOCX/TXT/YouTube → referenced sections → validated MCQs with explanations and source (page / slide / timestamp); trainer review + publish |
+| Instant evaluation, explanations, personalized feedback | `/api/assessments/{id}/answer` — per-answer feedback + live competency level |
+| AI virtual assistant | `backend/app/chatbot.py` — knows the official's role and top gaps; text, voice, image, PDF; replies in the learner's language |
+| Learner dashboard | `/api/dashboard/me` — readiness, domains, gaps, learning hours, courses, assessments |
+| Administrator dashboard | `/api/dashboard/org` — competency distribution, readiness by department/role, priority and emerging needs, training effectiveness, projected readiness |
+| Role-based access control | `users.role` (learner / trainer / admin), `require_role` dependency; JWT auth, SSO-ready |
+| Web platform | Same codebase runs as a responsive web app (`npx expo export -p web`) and an Android app |
 
-0. **Trails — learn from any YouTube playlist (`backend/app/trails/`):**
-   - Paste a playlist or video link. Gemini splits it into topics with prerequisites; long videos are split at their YouTube chapters.
-   - Put several playlists in one trail (e.g. Striver + Luv for DSA). Overlapping topics are linked, so mastering one marks the other **Covered**, and recommendations never show both.
-   - Every topic is **grounded in its lectures**: captions first, Gemini watching the video when captions are unavailable, lesson titles as the last resort. This produces key concepts with timestamps.
-   - Practice, quizzes and per-lesson checks come from a question bank built from those concepts. A wrong answer offers **Watch again**, which opens the lecture at the moment the concept is taught.
-   - Topic plans are shared and versioned: the second student to import a playlist reuses the first student's topics instantly. Rebuilding a source never changes another student's topics.
+### Honest status of integrations
 
-1. **Adaptive Recommendation Engine (`backend/app/recommendation/`):**
-   - **Knowledge Graph DAG:** Skills organized as a prerequisite tree. The system always recommends the deepest skill whose prerequisites are mastered — mathematically optimal learning path.
-   - **Phase 0 — EMA Mastery:** `mastery(t) = 0.3 × correct(t) + 0.7 × mastery(t-1)`. Works from Day 1 with zero prior data. Mastery declared at ≥0.75 for 3 consecutive attempts.
-   - **Phase 1 — Bayesian Knowledge Tracing:** Hidden Markov Model tracking P(learned), P(guess), P(slip), P(transit). Auto-activates at 200+ attempts per skill.
-   - **Phase 2 — Item Response Theory (2PL):** Calibrates question difficulty and student ability. Auto-activates at 200+ responses per item across 10+ users.
-   - **Orchestrator:** Auto-selects the best available phase per skill based on data volume. No manual intervention, no redeployment.
+- **iGOT Karmayogi APIs** require government onboarding. The platform ships a connector interface with a clearly labelled **sample catalogue** (iGOT-style courses + NSSTA programmes under NSSTA's real programme categories). A live connector only implements `fetch()`.
+- **SSO**: authentication is JWT today; the auth layer is isolated so a government IdP (e.g. Parichay) can be plugged in.
 
-2. **AI Tutor Chatbot:**
-   - Google Gemini-powered, context-aware (knows the student's current topic and mastery level).
-   - Persistent chat history in database. Ask by voice (speech is transcribed by Gemini) and hear answers read aloud.
-   - Attach a photo or PDF of a problem and the tutor reads it.
+## Demo accounts
 
-3. **Spaced Repetition Flashcards:**
-   - SM-2 algorithm (used by 10M+ Anki users) schedules reviews at mathematically optimal intervals.
-   - Cards optionally linked to knowledge graph skills. Shareable across study groups.
+Run `python -m scripts.seed_ps26101` (from `backend/`) to create them plus 24 synthetic officials for the admin analytics.
 
-4. **Smart To-Do List:**
-   - Auto-suggests study tasks based on knowledge graph gaps ("Study Linear Equations — prerequisites mastered").
-   - Carries forward incomplete tasks from previous days.
+| Role | Email | Password |
+|---|---|---|
+| Official (learner) | `officer@anvesh.in` | `demo1234` |
+| Trainer (NSSTA) | `trainer@anvesh.in` | `demo1234` |
+| Administrator | `admin@anvesh.in` | `demo1234` |
 
-5. **Gamification:**
-   - Quiz games unlock after 60 minutes of focused study (Pomodoro timer tracked).
-   - Questions pulled from the knowledge graph. Scores recorded per skill.
+## PS 26101 API
 
-6. **Study Groups & Collaboration:**
-   - Create groups with invite codes. Group chat with file attachments, shared files and shared flashcard decks.
-
-7. **Offline Support:**
-   - Flashcards are cached on the phone. Reviews made offline are saved and synced when the connection returns. Reaches rural and underserved students.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/competency/framework` | Domains, 33 competencies, 7 roles with required levels |
+| GET/PUT | `/api/competency/profile` | Official's competency profile |
+| GET | `/api/competency/me` | Levels, gaps (ranked), readiness |
+| GET | `/api/competency/{id}/diagnostic` | Shared diagnostic quiz (202 while generating) |
+| POST | `/api/materials` | Trainer upload (file or YouTube link) → quiz generation |
+| GET | `/api/materials` | Trainer's materials and generation status |
+| GET | `/api/assessments` / `/api/assessments/{id}` | Published quizzes / one quiz (answers hidden from learners) |
+| PATCH, PUT, DELETE | `/api/assessments/{id}[/questions/{qid}]` | Trainer review: publish, edit, delete |
+| POST | `/api/assessments/{id}/answer` | Instant feedback + competency update |
+| POST | `/api/assessments/{id}/finish` | Save attempt; completes a course on pass |
+| GET | `/api/courses` · `/recommended` · `/mine` | Catalogue, personalized pathway, my enrolments |
+| POST | `/api/courses/{id}/enrol` · `/progress` | Enrolment and progress |
+| GET | `/api/courses/{id}/quiz` | Course completion quiz |
+| POST | `/api/courses/sync` | Admin: pull catalogue through connectors |
+| GET | `/api/dashboard/me` · `/org` | Learner and administrator dashboards |
+| GET/PATCH | `/api/dashboard/users[/{id}]` | Admin: users and roles |
 
 ---
+
+## Platform internals (shared with the original edition)
 
 ## System Architecture
 
@@ -360,7 +372,7 @@ npx expo start
 
 | Name | Email | Password |
 | :--- | :--- | :--- |
-| Demo Student | `demo@anvesh.in` | `demo1234` |
+| Demo Student (original edition) | `demo@anvesh.in` | `demo1234` |
 | Adarsh | `adarsh@anvesh.in` | `adarsh1234` |
 | Test Student | `test@anvesh.in` | `test1234` |
 
