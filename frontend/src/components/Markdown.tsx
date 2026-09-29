@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { Platform, StyleSheet, Text, View, type TextStyle } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View, type TextStyle } from "react-native";
 import { colors, fonts, spacing, typography } from "../lib/theme";
 
 const MONO = Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" });
@@ -26,7 +26,12 @@ export function Markdown({ text, style }: { text: string; style?: TextStyle }) {
     if (line.trim().startsWith("```")) {
       const code: string[] = [];
       while (++i < lines.length && !lines[i].trim().startsWith("```")) code.push(lines[i]);
-      blocks.push(<Text key={i} style={[base, styles.codeBlock]}>{code.join("\n")}</Text>);
+      // Scroll sideways instead of wrapping, so indentation stays readable.
+      blocks.push(
+        <ScrollView key={i} horizontal style={styles.codeBlock} contentContainerStyle={styles.codeInner}>
+          <Text style={[base, styles.codeText]}>{code.join("\n")}</Text>
+        </ScrollView>,
+      );
       continue;
     }
     if (!line.trim()) continue;
@@ -66,7 +71,9 @@ const styles = StyleSheet.create({
   bold: fonts.bold,
   italic: { fontStyle: "italic" },
   code: { fontFamily: MONO, backgroundColor: colors.locked, fontSize: 13 },
-  codeBlock: { fontFamily: MONO, fontSize: 13, backgroundColor: colors.locked, padding: spacing.sm, borderRadius: 8 },
+  codeBlock: { backgroundColor: colors.locked, borderRadius: 8 },
+  codeInner: { padding: spacing.sm },
+  codeText: { fontFamily: MONO, fontSize: 13, lineHeight: 19 },
   heading: { ...typography.titleMd, color: colors.text, marginTop: 2 },
   item: { flexDirection: "row", gap: 6 },
   marker: { color: colors.primary, minWidth: 14 },
