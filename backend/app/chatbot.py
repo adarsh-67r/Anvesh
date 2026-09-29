@@ -8,6 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.attachments import AI_TYPES, MAX_BYTES, can_access
+from app.competency.framework import ROLE_BY_ID
+from app.competency.levels import ranked_gaps
+from app.competency.router import competency_levels
 from app.database import get_db
 from app.deps import get_current_user
 from app.llm import FAST, generate
@@ -67,6 +70,14 @@ async def chat(body: ChatRequest, user: User = Depends(get_current_user), db: As
     contents.append(genai.types.Content(role="user", parts=parts))
 
     system_text = SYSTEM_PROMPT
+    profile, levels = await competency_levels(db, user.id)
+    if profile and profile.role_id in ROLE_BY_ID:
+        gaps = ", ".join(f"{g.name} ({g.current:g}/{g.required})" for g in ranked_gaps(levels)[:5])
+        system_text += (
+            f"\n\nThe learner is an official of India's Official Statistical System: {profile.designation or ROLE_BY_ID[profile.role_id].name}"
+            f" ({ROLE_BY_ID[profile.role_id].name}), {profile.department}. Their biggest competency gaps: {gaps or 'none'}. "
+            "Tailor explanations to official statistics work in India (MoSPI, NSO, NSSTA) and reply in the language the learner writes in."
+        )
     if body.skill_context:
         system_text += f"\n\nThe student is currently studying: {body.skill_context}"
     if body.topic_id:
