@@ -1,5 +1,4 @@
-# SIH26101 edition (main). Reuses the existing "anvesh-api" Render service; set its branch to main.
-# Create with Render -> New -> Blueprint -> this repo, branch main.
+# SIH26101 edition (main): API "anvesh-api" + static web site "anvesh-web".
 services:
   - type: web
     name: anvesh-api
@@ -22,7 +21,7 @@ services:
         sync: false
 
   - type: web
-    name: anvesh-karmayogi
+    name: anvesh-web
     runtime: static
     branch: main
     rootDir: frontend
