@@ -24,6 +24,7 @@ from app.trails.router import router as trails_router, topics_router
 from app.videos import router as videos_router
 from app.competency.router import router as competency_router
 from app.assess.router import router as assess_router
+from app.catalog.router import router as catalog_router
 
 app.include_router(auth_router)
 app.include_router(recommend_router)
@@ -38,6 +39,7 @@ app.include_router(trails_router)
 app.include_router(topics_router)
 app.include_router(competency_router)
 app.include_router(assess_router)
+app.include_router(catalog_router)
 
 
 @app.get("/api/health")

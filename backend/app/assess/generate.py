@@ -84,6 +84,23 @@ DIAGNOSTIC_PROMPT = (
 )
 
 
+COURSE_PROMPT = (
+    "You are the examiner for the training course \"{title}\" ({provider}) for officials of India's Official Statistical "
+    "System. Course description: {desc}\nIt builds these competencies: {comps}.\n"
+    "Write {n} multiple-choice questions a participant who completed the course should answer (mix difficulty 1-3), "
+    "each tagged with the competency id it tests.\n"
+    'Return ONLY a JSON array; each item: {{"question": str, "options": [4 distinct strings], "answer": the correct option '
+    'string, "explanation": one sentence, "competency": one of {ids}, "difficulty": 1|2|3}}.'
+)
+
+
+async def course_mcqs(title: str, provider: str, desc: str, competency_ids: list[str], n: int = 8) -> list[dict]:
+    comps = [c for c in competency_ids if c in BY_ID]
+    prompt = COURSE_PROMPT.format(title=title, provider=provider, desc=desc, n=n + 2, ids=comps,
+                                  comps="; ".join(f"{c} = {BY_ID[c].name}" for c in comps))
+    return validate_mcqs(parse_json(await generate(prompt, FAST)), set(), set(comps), n)
+
+
 async def diagnostic_mcqs(competency_id: str, n: int = 8) -> list[dict]:
     c = BY_ID[competency_id]
     raw = parse_json(await generate(DIAGNOSTIC_PROMPT.format(name=c.name, desc=c.description, n=n + 2), FAST))
