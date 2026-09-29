@@ -2,9 +2,11 @@ import { Linking, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import * as DocumentPicker from "expo-document-picker";
 
-const BASE_URL =
+// Trailing dots/slashes/spaces sneak in when the URL is pasted into a host's env settings.
+const BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL ??
-  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000");
+  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000")
+).trim().replace(/[./]+$/, "");
 
 const TOKEN_KEY = "auth_token";
 
