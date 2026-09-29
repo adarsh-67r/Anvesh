@@ -17,6 +17,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    # learner (official) | trainer | admin
+    role: Mapped[str] = mapped_column(String(20), default="learner", server_default="learner")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -264,4 +266,116 @@ class Question(Base):
     answer: Mapped[str] = mapped_column(Text)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     timestamp_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ---- Skill intelligence (PS 26101) ----
+
+class OfficialProfile(Base):
+    """Competency profile inputs for an official: designation, role, experience, trainings."""
+    __tablename__ = "official_profiles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    designation: Mapped[str] = mapped_column(String(150), default="", server_default="")
+    role_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    cadre: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    department: Mapped[str] = mapped_column(String(150), default="", server_default="")
+    division: Mapped[str] = mapped_column(String(150), default="", server_default="")
+    current_assignment: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    qualifications: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    experience_years: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    past_trainings: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Course(Base):
+    """A course from a catalogue connector: iGOT Karmayogi or NSSTA (TPAC-recommended programmes)."""
+    __tablename__ = "courses"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)  # "<source>:<external id>"
+    source: Mapped[str] = mapped_column(String(20), index=True)  # igot | nssta
+    title: Mapped[str] = mapped_column(String(300))
+    provider: Mapped[str] = mapped_column(String(150), default="", server_default="")
+    programme: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    mode: Mapped[str] = mapped_column(String(20), default="online", server_default="online")
+    duration_hours: Mapped[float] = mapped_column(Float, default=1, server_default="1")
+    level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")  # level (1-5) the course teaches up to
+    competencies: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    synced_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Enrolment(Base):
+    __tablename__ = "enrolments"
+    __table_args__ = (UniqueConstraint("user_id", "course_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"))
+    status: Mapped[str] = mapped_column(String(20), default="enrolled", server_default="enrolled")  # enrolled | completed
+    progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    enrolled_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Material(Base):
+    """Learning material uploaded by a trainer (document, presentation, video link) for question generation."""
+    __tablename__ = "materials"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(10))  # pdf | pptx | docx | txt | video
+    filename: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    sections: Mapped[list[dict]] = mapped_column(JSON, default=list, server_default="[]")  # [{ref, text}]
+    competency_ids: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    status: Mapped[str] = mapped_column(String(20), default="processing", server_default="processing")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Assessment(Base):
+    """A quiz: generated from a material, a diagnostic for one competency, or a course completion check."""
+    __tablename__ = "assessments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(20))  # material | diagnostic | course
+    title: Mapped[str] = mapped_column(String(300))
+    material_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("materials.id", ondelete="CASCADE"), nullable=True)
+    course_id: Mapped[str | None] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), nullable=True)
+    competency_ids: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    status: Mapped[str] = mapped_column(String(20), default="ready", server_default="ready")  # generating | ready | failed
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AssessmentQuestion(Base):
+    __tablename__ = "assessment_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    assessment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assessments.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    options: Mapped[list[str]] = mapped_column(JSON)
+    answer: Mapped[str] = mapped_column(Text)
+    explanation: Mapped[str] = mapped_column(Text, default="", server_default="")
+    source_ref: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    competency_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    difficulty: Mapped[int] = mapped_column(Integer, default=2, server_default="2")  # 1-3
+
+
+class Attempt(Base):
+    __tablename__ = "attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    assessment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("assessments.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    score: Mapped[int] = mapped_column(Integer)
+    total: Mapped[int] = mapped_column(Integer)
+    answers: Mapped[list[dict]] = mapped_column(JSON, default=list)  # [{question_id, selected, correct}]
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
