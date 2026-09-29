@@ -1,7 +1,10 @@
+# SIH26101 edition (branch ps-26101). The original edition's API ("anvesh-api") is defined on master.
+# Create with Render -> New -> Blueprint -> this repo, branch ps-26101.
 services:
   - type: web
-    name: anvesh-api
+    name: anvesh-26101-api
     runtime: python
+    branch: ps-26101
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -17,3 +20,18 @@ services:
         sync: false
       - key: YOUTUBE_API_KEY
         sync: false
+
+  - type: web
+    name: anvesh-26101-web
+    runtime: static
+    branch: ps-26101
+    rootDir: frontend
+    buildCommand: npm ci && npx expo export -p web
+    staticPublishPath: dist
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://anvesh-26101-api.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

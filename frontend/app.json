@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Anvesh",
+    "name": "Anvesh Skills",
     "slug": "anvesh",
     "version": "1.0.1",
     "orientation": "portrait",
-    "scheme": "anvesh",
+    "scheme": "anvesh-skills",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
@@ -18,7 +18,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.arithi.anvesh",
+      "package": "com.arithi.anvesh.skills",
       "versionCode": 3
     },
     "web": {

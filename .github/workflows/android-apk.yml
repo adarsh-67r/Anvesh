@@ -10,7 +10,7 @@ jobs:
       run:
         working-directory: frontend
     env:
-      EXPO_PUBLIC_API_URL: https://anvesh-api.onrender.com
+      EXPO_PUBLIC_API_URL: https://anvesh-26101-api.onrender.com
     steps:
       - uses: actions/checkout@v4
 
