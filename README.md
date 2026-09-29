@@ -139,7 +139,7 @@ npx expo start --web             # API defaults to http://localhost:8000; set EX
 
 ## Deployment
 
-`render.yaml` on this branch defines `anvesh-karmayogi-api` (FastAPI) and `anvesh-karmayogi` (static web build).
+`render.yaml` on this branch defines `anvesh-api` (FastAPI) and `anvesh-karmayogi` (static web build).
 
 ## Project structure
 

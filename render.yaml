@@ -1,8 +1,8 @@
-# SIH26101 edition (main). The original PS 26207 edition ("anvesh-api") lives on branch ps-26207.
+# SIH26101 edition (main). Reuses the existing "anvesh-api" Render service; set its branch to main.
 # Create with Render -> New -> Blueprint -> this repo, branch main.
 services:
   - type: web
-    name: anvesh-karmayogi-api
+    name: anvesh-api
     runtime: python
     branch: main
     rootDir: backend
@@ -30,7 +30,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: EXPO_PUBLIC_API_URL
-        value: https://anvesh-karmayogi-api.onrender.com
+        value: https://anvesh-api.onrender.com
     routes:
       - type: rewrite
         source: /*
