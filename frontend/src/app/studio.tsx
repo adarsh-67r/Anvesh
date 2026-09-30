@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { api, pickFile, type PickedFile } from "../lib/api";
 import { errorDetail } from "../lib/api";
 import { getFramework, type Competency } from "../lib/skills";
+import { SPACES } from "../lib/workspace";
 import { colors, radii, spacing, typography } from "../lib/theme";
 import { Badge, Button, Card, Chip, Empty, Page, SectionTitle, shared } from "../components/Skill";
 import { PressableScale } from "../components/Motion";
@@ -16,6 +17,7 @@ const DOC_TYPES = [
   "text/plain",
 ];
 const MAX_UPLOAD = 15 * 1024 * 1024;
+const ACCENT = SPACES.trainer.accent;
 
 type MaterialRow = {
   id: string; title: string; kind: string; filename: string; status: "processing" | "ready" | "failed"; error: string | null;
@@ -29,12 +31,15 @@ export default function StudioScreen() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<PickedFile | null>(null);
-  const [picked, setPicked] = useState<string[]>([]);
+  // Opened from a "Quiz ideas" gap: preselect that competency.
+  const { competency } = useLocalSearchParams<{ competency?: string }>();
+  const [picked, setPicked] = useState<string[]>(competency ? [competency] : []);
   const [count, setCount] = useState(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => { getFramework().then((f) => setComps(f.competencies)).catch(() => {}); }, []);
+
 
   const load = useCallback(async () => {
     const r = await api.get<MaterialRow[]>("/api/materials").catch(() => null);
@@ -96,10 +101,10 @@ export default function StudioScreen() {
           the content, each with an explanation and the page, slide or timestamp it came from. You review before publishing.
         </Text>
         <View style={shared.wrap}>
-          <Button label={file ? "Change file" : "Choose file"} icon="upload-file" kind="secondary" onPress={choose} />
+          <Button label={file ? "Change file" : "Choose file"} icon="upload-file" kind="secondary" accent={ACCENT} onPress={choose} />
           {file && (
             <View style={[shared.row, styles.fileChip]}>
-              <MaterialIcons name="description" size={18} color={colors.primary} />
+              <MaterialIcons name="description" size={18} color={ACCENT} />
               <Text style={shared.body} numberOfLines={1}>{file.name}</Text>
               <PressableScale onPress={() => setFile(null)} accessibilityLabel="Remove file">
                 <MaterialIcons name="close" size={18} color={colors.textSecondary} />
@@ -122,7 +127,7 @@ export default function StudioScreen() {
           {[5, 10, 15, 20].map((n) => <Chip key={n} label={String(n)} active={count === n} onPress={() => setCount(n)} />)}
         </View>
         {error ? <Text style={shared.error}>{error}</Text> : null}
-        <Button label="Generate questions" icon="auto-awesome" busy={busy} onPress={submit} />
+        <Button label="Generate questions" icon="auto-awesome" accent={ACCENT} busy={busy} onPress={submit} />
       </Card>
 
       <SectionTitle>Your materials</SectionTitle>
@@ -142,6 +147,11 @@ export default function StudioScreen() {
               {m.kind.toUpperCase()}{m.filename ? ` · ${m.filename}` : ""}{m.status === "ready" ? ` · ${m.sections} sections read · ${m.assessment.questions} questions` : ""}
             </Text>
             {m.error ? <Text style={shared.error}>{m.error}</Text> : null}
+            {m.assessment.published && (
+              <PressableScale onPress={() => router.push({ pathname: "/results/[id]", params: { id: m.assessment.id } })} style={{ alignSelf: "flex-start" }}>
+                <Text style={styles.link}>View learner results →</Text>
+              </PressableScale>
+            )}
           </Card>
         </PressableScale>
       ))}
@@ -152,5 +162,6 @@ export default function StudioScreen() {
 const styles = StyleSheet.create({
   label: { ...typography.labelLg, color: colors.text, marginTop: spacing.xs },
   input: { ...typography.bodyMd, color: colors.text, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: 10, backgroundColor: colors.surface },
-  fileChip: { backgroundColor: colors.primaryLight, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: 8, maxWidth: 320 },
+  link: { ...typography.labelLg, color: ACCENT },
+  fileChip: { backgroundColor: SPACES.trainer.tint, borderRadius: radii.full, paddingHorizontal: spacing.md, paddingVertical: 8, maxWidth: 320 },
 });

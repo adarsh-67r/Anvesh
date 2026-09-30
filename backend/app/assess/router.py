@@ -295,6 +295,41 @@ async def answer(assessment_id: str, body: AnswerBody, user: User = Depends(get_
             "competency_id": cid, "level": round(mastery["mastery_score"] * 5, 1) if mastery else None}
 
 
+@router.get("/api/assessments/{assessment_id}/results")
+async def results(assessment_id: str, user: User = Depends(require_role("trainer")), db: AsyncSession = Depends(get_db)):
+    """For the quiz's author: every attempt, and how often each question (and each option) was chosen."""
+    a = await _load(db, assessment_id, user)
+    if not can_edit(user, a):
+        raise HTTPException(status_code=403, detail="Only the author can see results")
+    qs = (await db.execute(
+        select(AssessmentQuestion).where(AssessmentQuestion.assessment_id == a.id).order_by(AssessmentQuestion.position)
+    )).scalars().all()
+    rows = (await db.execute(select(Attempt, User.name).join(User, User.id == Attempt.user_id)
+                             .where(Attempt.assessment_id == a.id).order_by(Attempt.created_at.desc()))).all()
+    picks = {str(q.id): {} for q in qs}
+    for t, _ in rows:
+        for ans in t.answers or []:
+            if (c := picks.get(str(ans.get("question_id")))) is not None:
+                c[ans.get("selected", "")] = c.get(ans.get("selected", ""), 0) + 1
+    questions = []
+    for q in qs:
+        c = picks[str(q.id)]
+        n = sum(c.values())
+        questions.append({**question_dict(q, True), "responses": n,
+                          "percent_correct": round(100 * c.get(q.answer, 0) / n) if n else None,
+                          "option_counts": [c.get(o, 0) for o in q.options]})
+    percents = [100 * t.score / t.total for t, _ in rows]
+    return {
+        "id": str(a.id), "title": a.title, "published": a.published, "competency_ids": a.competency_ids,
+        "attempts": len(rows), "learners": len({t.user_id for t, _ in rows}),
+        "average_score": round(sum(percents) / len(percents)) if percents else None,
+        "pass_rate": round(100 * sum(p >= 100 * PASS_MARK for p in percents) / len(percents)) if percents else None,
+        "questions": questions,
+        "recent": [{"name": name, "score": t.score, "total": t.total, "percent": round(100 * t.score / t.total),
+                    "at": t.created_at.isoformat()} for t, name in rows[:20]],
+    }
+
+
 class FinishBody(BaseModel):
     answers: list[dict] = Field(..., max_length=100)  # [{question_id, selected}]
 

@@ -14,9 +14,10 @@ from app.competency.levels import CompetencyLevel, ranked_gaps
 from app.competency.router import competency_levels, levels_for
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import Assessment, Attempt, Course, Enrolment, LearningEvent, OfficialProfile, SkillMastery, User
+from app.models import Assessment, AssessmentQuestion, Attempt, Course, Enrolment, LearningEvent, OfficialProfile, SkillMastery, User
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+MIN_RESPONSES = 3  # before a question's hit rate counts
 EMERGING = {"ai_ml", "cloud_computing", "apis", "open_data", "government_cloud", "dpi", "cybersecurity", "data_privacy", "python", "gis"}
 
 
@@ -52,6 +53,31 @@ async def learning_hours(db: AsyncSession, user_id) -> float:
     minutes = (await db.execute(select(LearningEvent.context).where(
         LearningEvent.user_id == user_id, LearningEvent.event_type == "study_session"))).scalars().all()
     return round(course_h + sum(int((m or {}).get("minutes", 0) or 0) for m in minutes) / 60, 1)
+
+
+async def officials_levels(db: AsyncSession, profiles: list[OfficialProfile] | None = None) -> list[tuple[OfficialProfile, list[CompetencyLevel]]]:
+    """Every profiled official with their competency levels (mastery bulk-loaded in one query)."""
+    if profiles is None:
+        profiles = (await db.execute(select(OfficialProfile).where(OfficialProfile.role_id.is_not(None)))).scalars().all()
+    mastery = defaultdict(list)
+    for r in (await db.execute(select(SkillMastery).where(SkillMastery.skill_id.like("comp:%")))).scalars():
+        mastery[r.user_id].append(r)
+    return [(p, levels_for(p, mastery[p.user_id])) for p in profiles]
+
+
+def competency_distribution(all_levels: list[tuple[OfficialProfile, list[CompetencyLevel]]]) -> list[dict]:
+    per_comp = defaultdict(lambda: {"current": [], "met": 0, "gap": 0.0})
+    for _, levels in all_levels:
+        for lv in levels:
+            if lv.required:
+                s = per_comp[lv.id]
+                s["current"].append(lv.current)
+                s["met"] += lv.gap == 0
+                s["gap"] += lv.gap
+    return [{"id": c.id, "name": c.name, "domain": c.domain, "officials": len(s["current"]),
+             "average_level": round(sum(s["current"]) / len(s["current"]), 1),
+             "percent_meeting": round(100 * s["met"] / len(s["current"])), "total_gap": round(s["gap"], 1)}
+            for c in COMPETENCIES if (s := per_comp.get(c.id))]
 
 
 @router.get("/me")
@@ -93,36 +119,18 @@ async def org_dashboard(user: User = Depends(require_role("admin")), db: AsyncSe
     for e, c in all_ens:
         ens_by_user[e.user_id].append((e, c))
 
-    per_comp = defaultdict(lambda: {"current": [], "met": 0, "required": 0, "gap": 0.0})
     dept, role_rows, officials = defaultdict(list), defaultdict(list), []
     proj_scores = []
-    mastery = defaultdict(list)
-    for r in (await db.execute(select(SkillMastery).where(SkillMastery.skill_id.like("comp:%")))).scalars():
-        mastery[r.user_id].append(r)
-    for p in profiles:
-        levels = levels_for(p, mastery[p.user_id])
+    all_levels = await officials_levels(db, profiles)
+    for p, levels in all_levels:
         r = readiness(levels)
         enrolled = [c for e, c in ens_by_user[p.user_id] if e.status != "completed"]
         proj_scores.append(readiness(projected(levels, enrolled)))
         officials.append(r)
         dept[p.department or "Unspecified"].append(r)
         role_rows[p.role_id].append(r)
-        for lv in levels:
-            if lv.required:
-                s = per_comp[lv.id]
-                s["current"].append(lv.current)
-                s["required"] += 1
-                s["met"] += lv.gap == 0
-                s["gap"] += lv.gap
 
-    distribution = []
-    for c in COMPETENCIES:
-        s = per_comp.get(c.id)
-        if not s or not s["required"]:
-            continue
-        distribution.append({"id": c.id, "name": c.name, "domain": c.domain, "officials": s["required"],
-                             "average_level": round(sum(s["current"]) / len(s["current"]), 1),
-                             "percent_meeting": round(100 * s["met"] / s["required"]), "total_gap": round(s["gap"], 1)})
+    distribution = competency_distribution(all_levels)
     top_gaps = sorted(distribution, key=lambda d: -d["total_gap"])[:8]
     emerging = sorted([d for d in distribution if d["id"] in EMERGING], key=lambda d: d["percent_meeting"])[:6]
 
@@ -140,7 +148,7 @@ async def org_dashboard(user: User = Depends(require_role("admin")), db: AsyncSe
         "id": cid, "title": titles[cid][0], "source": titles[cid][1], "enrolled": s["enrolled"], "completed": s["completed"],
         "completion_rate": round(100 * s["completed"] / s["enrolled"]),
         "average_score": round(sum(s["scores"]) / len(s["scores"])) if s["scores"] else None,
-    } for cid, s in courses.items()], key=lambda x: (-x["enrolled"], x["title"]))[:12]
+    } for cid, s in courses.items()], key=lambda x: (-x["enrolled"], x["title"]))
 
     avg = lambda xs: round(sum(xs) / len(xs)) if xs else 0  # noqa: E731
     users = (await db.execute(select(func.count()).select_from(User))).scalar()
@@ -154,6 +162,52 @@ async def org_dashboard(user: User = Depends(require_role("admin")), db: AsyncSe
         "top_gaps": top_gaps,
         "emerging_needs": emerging,
         "training_effectiveness": effectiveness,
+    }
+
+
+@router.get("/trainer")
+async def trainer_dashboard(user: User = Depends(require_role("trainer")), db: AsyncSession = Depends(get_db)):
+    """How the trainer's quizzes perform, which questions learners miss, and which org-wide gaps have no quiz yet."""
+    q = select(Assessment).where(Assessment.kind == "material").order_by(Assessment.created_at.desc())
+    if user.role != "admin":
+        q = q.where(Assessment.created_by == user.id)
+    quizzes = (await db.execute(q)).scalars().all()
+    ids = [a.id for a in quizzes]
+    questions = (await db.execute(select(AssessmentQuestion).where(AssessmentQuestion.assessment_id.in_(ids)))).scalars().all() if ids else []
+    attempts = (await db.execute(select(Attempt).where(Attempt.assessment_id.in_(ids)))).scalars().all() if ids else []
+
+    per_quiz = defaultdict(list)
+    per_question = defaultdict(lambda: [0, 0])  # [responses, correct]
+    for t in attempts:
+        per_quiz[t.assessment_id].append(t)
+        for ans in t.answers or []:
+            c = per_question[str(ans.get("question_id"))]
+            c[0] += 1
+            c[1] += bool(ans.get("correct"))
+    n_questions = defaultdict(int)
+    for qn in questions:
+        n_questions[qn.assessment_id] += 1
+    pct = lambda ts: round(sum(100 * t.score / t.total for t in ts) / len(ts)) if ts else None  # noqa: E731
+
+    titles = {a.id: a.title for a in quizzes}
+    hardest = sorted(
+        [{"id": str(qn.id), "text": qn.text, "quiz": titles[qn.assessment_id], "assessment_id": str(qn.assessment_id),
+          "responses": per_question[str(qn.id)][0], "percent_correct": round(100 * per_question[str(qn.id)][1] / per_question[str(qn.id)][0])}
+         for qn in questions if per_question[str(qn.id)][0] >= MIN_RESPONSES],
+        key=lambda x: x["percent_correct"])[:5]
+
+    covered = {cid for a in quizzes if a.published for cid in (a.competency_ids or [])}
+    distribution = competency_distribution(await officials_levels(db))
+    uncovered = sorted([d for d in distribution if d["id"] not in covered and d["total_gap"] > 0], key=lambda d: -d["total_gap"])[:6]
+
+    return {
+        "quizzes": len(quizzes), "published": sum(a.published for a in quizzes), "questions": len(questions),
+        "attempts": len(attempts), "learners": len({t.user_id for t in attempts}), "average_score": pct(attempts),
+        "quiz_stats": [{"id": str(a.id), "title": a.title, "status": a.status, "published": a.published, "questions": n_questions[a.id],
+                        "attempts": len(per_quiz[a.id]), "learners": len({t.user_id for t in per_quiz[a.id]}),
+                        "average_score": pct(per_quiz[a.id])} for a in quizzes],
+        "hardest_questions": hardest,
+        "uncovered_gaps": uncovered,
     }
 
 

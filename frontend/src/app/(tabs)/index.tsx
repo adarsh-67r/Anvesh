@@ -8,6 +8,9 @@ import { colors, radii, spacing, typography } from "../../lib/theme";
 import { DOMAIN_COLORS, SOURCE_LABEL, levelText, type Course, type Domain, type Level } from "../../lib/skills";
 import { Badge, Button, Card, Empty, LevelBar, Page, SectionTitle, Stat, shared } from "../../components/Skill";
 import { PressableScale, Skeleton } from "../../components/Motion";
+import AdminHome from "../../components/AdminHome";
+import TrainerHome from "../../components/TrainerHome";
+import { useSpace } from "../../lib/workspace";
 
 type Dashboard = {
   role: { id: string; name: string } | null;
@@ -21,7 +24,15 @@ type Dashboard = {
   assessments: { taken: number; average: number | null };
 };
 
-export default function DashboardScreen() {
+export default function Home() {
+  const { user } = useAuth();
+  const space = useSpace(user?.role);
+  if (space === "admin") return <AdminHome />;
+  if (space === "trainer") return <TrainerHome />;
+  return <LearnerDashboard />;
+}
+
+function LearnerDashboard() {
   const { user } = useAuth();
   const [data, setData] = useState<Dashboard | null>(null);
   const [recs, setRecs] = useState<Course[]>([]);
@@ -167,12 +178,6 @@ export default function DashboardScreen() {
         </>
       )}
 
-      {(user?.role === "trainer" || user?.role === "admin") && (
-        <View style={shared.wrap}>
-          <Button label="Question Studio" icon="auto-awesome" kind="secondary" onPress={() => router.push("/studio")} />
-          {user?.role === "admin" && <Button label="Organisation dashboard" icon="domain" kind="secondary" onPress={() => router.push("/admin")} />}
-        </View>
-      )}
     </Page>
   );
 }

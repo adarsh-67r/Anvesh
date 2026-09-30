@@ -16,7 +16,7 @@ from app.catalog.router import sync_catalogue
 from app.competency.framework import ROLE_BY_ID
 from app.competency.levels import comp_skill_id
 from app.database import async_session
-from app.models import Course, Enrolment, OfficialProfile, SkillMastery, User
+from app.models import Assessment, AssessmentQuestion, Attempt, Course, Enrolment, Material, OfficialProfile, SkillMastery, User
 
 PASSWORD = "demo1234"
 ACCOUNTS = [
@@ -43,6 +43,63 @@ DEPARTMENTS = ["National Statistics Office (FOD)", "National Accounts Division",
 FIRST = ["Amit", "Neha", "Sanjay", "Kavita", "Rohit", "Meera", "Arjun", "Pooja", "Vikram", "Sunita", "Deepak", "Anjali",
          "Rahul", "Swati", "Manoj", "Ritu", "Suresh", "Nisha", "Ajay", "Preeti", "Gaurav", "Shalini", "Harish", "Divya"]
 LAST = ["Kumar", "Singh", "Patel", "Iyer", "Das", "Nair", "Gupta", "Reddy", "Mishra", "Joshi", "Mehta", "Bose"]
+
+# Trainer's published quizzes: (title, kind, competency, [(question, options, answer, explanation, source_ref, difficulty)])
+QUIZZES = [
+    ("PLFS concepts and definitions", "pdf", "labour_statistics", [
+        ("How is the Labour Force Participation Rate (LFPR) defined in PLFS?",
+         ["Percentage of persons in the labour force in the population", "Percentage of employed persons in the population",
+          "Percentage of unemployed persons in the population", "Percentage of workers among persons of working age"],
+         "Percentage of persons in the labour force in the population",
+         "LFPR counts everyone working or seeking/available for work, as a share of the whole population.", "Page 2", 1),
+        ("Which ratio can never exceed the LFPR for the same population and status?",
+         ["Worker Population Ratio (WPR)", "Unemployment Rate (UR)", "Dependency ratio", "Sex ratio"],
+         "Worker Population Ratio (WPR)", "Workers are a subset of the labour force, so WPR <= LFPR.", "Page 3", 2),
+        ("The Unemployment Rate in PLFS is computed as unemployed persons as a percentage of...",
+         ["persons in the labour force", "the total population", "persons of working age", "employed persons"],
+         "persons in the labour force", "UR = unemployed / labour force x 100, not the whole population.", "Page 3", 2),
+        ("What reference period does the Current Weekly Status (CWS) use?",
+         ["The last 7 days", "The last 30 days", "The last 365 days", "The previous calendar month"],
+         "The last 7 days", "CWS classifies activity over the 7 days preceding the survey date.", "Page 4", 1),
+        ("In usual status (ps+ss), a person outside the labour force by principal status who worked 30 days or more in a subsidiary role is counted as...",
+         ["a worker", "unemployed", "outside the labour force", "underemployed only"],
+         "a worker", "ps+ss adds subsidiary-status workers (30+ days in the reference year) to principal-status workers.", "Page 5", 3),
+    ]),
+    ("Sampling design essentials", "pptx", "sampling", [
+        ("In stratified random sampling, strata should be...",
+         ["internally homogeneous and different from each other", "internally heterogeneous", "of equal size", "chosen after data collection"],
+         "internally homogeneous and different from each other", "Homogeneous strata reduce within-stratum variance and so the overall variance.", "Slide 3", 1),
+        ("Design effect (deff) compares the variance of a complex design with that of...",
+         ["simple random sampling of the same size", "a census", "systematic sampling", "stratified sampling with Neyman allocation"],
+         "simple random sampling of the same size", "deff = Var(complex design) / Var(SRS) at the same sample size.", "Slide 6", 2),
+        ("Cluster sampling typically increases variance because...",
+         ["units within a cluster tend to be similar", "clusters are always small", "it needs a sampling frame of units", "weights are not used"],
+         "units within a cluster tend to be similar", "Positive intra-cluster correlation means each extra unit in a cluster adds less new information.", "Slide 7", 2),
+        ("Neyman allocation assigns a larger sample to strata with...",
+         ["larger size and larger standard deviation", "the smallest cost per unit only", "equal size", "the lowest variability"],
+         "larger size and larger standard deviation", "n_h is proportional to N_h x S_h: big and variable strata get more sample.", "Slide 9", 3),
+        ("Which is a probability sampling method?",
+         ["Systematic sampling with a random start", "Quota sampling", "Snowball sampling", "Convenience sampling"],
+         "Systematic sampling with a random start", "A random start gives every unit a known, non-zero selection chance.", "Slide 2", 1),
+    ]),
+    ("Handling personal data in surveys", "docx", "data_privacy", [
+        ("Under the Digital Personal Data Protection Act, 2023, the entity that decides the purpose and means of processing is the...",
+         ["Data Fiduciary", "Data Principal", "Data Processor", "Consent Manager"],
+         "Data Fiduciary", "The Data Fiduciary determines why and how personal data is processed.", "Section: Key terms", 1),
+        ("Before releasing unit-level survey data, the main step to protect respondents is...",
+         ["anonymisation / statistical disclosure control", "compressing the files", "releasing only to government IPs", "removing the survey weights"],
+         "anonymisation / statistical disclosure control", "Remove direct identifiers and limit re-identification risk before release.", "Section: Data release", 2),
+        ("The purpose limitation principle means personal data should be...",
+         ["used only for the purpose it was collected for", "kept forever for future use", "shared freely across departments", "collected in as much detail as possible"],
+         "used only for the purpose it was collected for", "Re-use for unrelated purposes needs a fresh lawful basis.", "Section: Principles", 2),
+        ("A small-area table cell showing 2 respondents with a rare attribute is a risk mainly because of...",
+         ["re-identification", "sampling error", "non-response bias", "rounding"],
+         "re-identification", "Tiny cells can single people out, so suppress or aggregate them.", "Section: Disclosure risk", 3),
+        ("Who is the Data Principal in a household survey?",
+         ["The person the data is about", "The survey agency", "The field investigator", "The IT vendor"],
+         "The person the data is about", "The Data Principal is the individual to whom the personal data relates.", "Section: Key terms", 1),
+    ]),
+]
 
 
 async def upsert_user(db, email, name, role):
@@ -111,7 +168,39 @@ async def main():
                                  enrolled_at=now - timedelta(days=rng.randint(10, 120)),
                                  completed_at=now - timedelta(days=rng.randint(1, 9)) if done else None))
         await db.commit()
-    print("seeded: 3 demo accounts (password demo1234) + 24 synthetic officials")
+
+        # the trainer's quizzes, taken by the synthetic officials
+        trainer = (await db.execute(select(User).where(User.email == "trainer@anvesh.in"))).scalar_one()
+        await db.execute(delete(Material).where(Material.owner_id == trainer.id))
+        await db.execute(delete(Assessment).where(Assessment.created_by == trainer.id, Assessment.kind == "material"))
+        officials = (await db.execute(select(User).where(User.email.like("%@demo.anvesh.in")))).scalars().all()
+        for qi, (title, kind, cid, items) in enumerate(QUIZZES):
+            m = Material(owner_id=trainer.id, title=title, kind=kind, filename=f"{title.lower().replace(' ', '_')}.{kind}",
+                         sections=[], competency_ids=[cid], status="ready")
+            db.add(m)
+            await db.flush()
+            a = Assessment(kind="material", title=title, material_id=m.id, competency_ids=[cid], created_by=trainer.id,
+                           published=True, status="ready")
+            db.add(a)
+            await db.flush()
+            qs = []
+            for pos, (text, options, answer, why, ref, diff) in enumerate(items):
+                q = AssessmentQuestion(assessment_id=a.id, position=pos, text=text, options=options, answer=answer,
+                                       explanation=why, source_ref=ref, competency_id=cid, difficulty=diff)
+                db.add(q)
+                qs.append(q)
+            await db.flush()
+            for u in rng.sample(officials, k=[18, 14, 11][qi]):
+                skill = rng.uniform(0.45, 0.95)
+                answers = []
+                for q in qs:
+                    ok = rng.random() < skill - 0.18 * (q.difficulty - 1)
+                    wrong = rng.choice([o for o in q.options if o != q.answer])
+                    answers.append({"question_id": str(q.id), "selected": q.answer if ok else wrong, "correct": ok})
+                db.add(Attempt(assessment_id=a.id, user_id=u.id, score=sum(x["correct"] for x in answers), total=len(qs),
+                               answers=answers, created_at=now - timedelta(days=rng.randint(0, 20), hours=rng.randint(0, 23))))
+        await db.commit()
+    print("seeded: 3 demo accounts (password demo1234) + 24 synthetic officials + 3 trainer quizzes with attempts")
 
 
 if __name__ == "__main__":
